@@ -1,0 +1,190 @@
+use crate::sanitize::sanitize_filename;
+use crate::state::{DownloadStatus, SegmentStatus, VerificationStatus};
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use uuid::Uuid;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DownloadJob {
+    pub id: Uuid,
+    pub url: String,
+    pub final_url: Option<String>,
+    pub file_name: String,
+    pub destination: PathBuf,
+    pub temp_path: Option<PathBuf>,
+    pub total_bytes: Option<u64>,
+    pub downloaded_bytes: u64,
+    pub status: DownloadStatus,
+    pub category: Option<String>,
+    pub priority: i32,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub completed_at: Option<DateTime<Utc>>,
+    pub retry_count: u32,
+    pub retry_limit: u32,
+    pub expected_hash: Option<String>,
+    pub hash_algorithm: Option<String>,
+    pub verification_status: VerificationStatus,
+    pub segmented: bool,
+    pub last_error_code: Option<String>,
+    pub last_error_message: Option<String>,
+}
+
+impl DownloadJob {
+    pub fn new(
+        url: impl Into<String>,
+        destination_dir: impl AsRef<Path>,
+        custom_file_name: Option<String>,
+    ) -> Self {
+        let url_str = url.into();
+        let name = match custom_file_name {
+            Some(n) if !n.trim().is_empty() => sanitize_filename(&n),
+            _ => {
+                let inferred = url_str
+                    .split('?')
+                    .next()
+                    .unwrap_or(&url_str)
+                    .rsplit('/')
+                    .next()
+                    .unwrap_or("download");
+                sanitize_filename(inferred)
+            }
+        };
+
+        let dest = destination_dir.as_ref().join(&name);
+        let now = Utc::now();
+
+        Self {
+            id: Uuid::new_v4(),
+            url: url_str,
+            final_url: None,
+            file_name: name,
+            destination: dest,
+            temp_path: None,
+            total_bytes: None,
+            downloaded_bytes: 0,
+            status: DownloadStatus::Queued,
+            category: None,
+            priority: 0,
+            created_at: now,
+            updated_at: now,
+            completed_at: None,
+            retry_count: 0,
+            retry_limit: 5,
+            expected_hash: None,
+            hash_algorithm: None,
+            verification_status: VerificationStatus::NotRequested,
+            segmented: false,
+            last_error_code: None,
+            last_error_message: None,
+        }
+    }
+
+    pub fn progress_ratio(&self) -> Option<f64> {
+        self.total_bytes.map(|total| {
+            if total == 0 {
+                0.0
+            } else {
+                (self.downloaded_bytes as f64 / total as f64).min(1.0)
+            }
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Segment {
+    pub id: Uuid,
+    pub download_id: Uuid,
+    pub start_byte: u64,
+    pub end_byte: u64, // inclusive
+    pub received_bytes: u64,
+    pub status: SegmentStatus,
+    pub temp_path: PathBuf,
+    pub retry_count: u32,
+    pub updated_at: DateTime<Utc>,
+}
+
+impl Segment {
+    pub fn new(
+        download_id: Uuid,
+        start_byte: u64,
+        end_byte: u64,
+        temp_path: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            id: Uuid::new_v4(),
+            download_id,
+            start_byte,
+            end_byte,
+            received_bytes: 0,
+            status: SegmentStatus::Pending,
+            temp_path: temp_path.into(),
+            retry_count: 0,
+            updated_at: Utc::now(),
+        }
+    }
+
+    pub fn expected_length(&self) -> u64 {
+        if self.end_byte >= self.start_byte {
+            self.end_byte - self.start_byte + 1
+        } else {
+            0
+        }
+    }
+
+    pub fn is_completed(&self) -> bool {
+        self.status == SegmentStatus::Completed || self.received_bytes >= self.expected_length()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CollisionPolicy {
+    Rename,
+    Overwrite,
+    Prompt,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EngineSettings {
+    pub default_destination: PathBuf,
+    pub ask_destination_each_time: bool,
+    pub max_active_downloads: usize,
+    pub default_segment_count: usize,
+    pub max_segment_count: usize,
+    pub retry_limit: u32,
+    pub global_bandwidth_limit_bytes_per_sec: Option<u64>,
+    pub collision_policy: CollisionPolicy,
+    pub theme: String,
+    pub clipboard_monitoring_enabled: bool,
+    pub notification_enabled: bool,
+}
+
+impl Default for EngineSettings {
+    fn default() -> Self {
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let default_dest = PathBuf::from(home).join("Downloads");
+
+        Self {
+            default_destination: default_dest,
+            ask_destination_each_time: false,
+            max_active_downloads: 3,
+            default_segment_count: 4,
+            max_segment_count: 16,
+            retry_limit: 5,
+            global_bandwidth_limit_bytes_per_sec: None,
+            collision_policy: CollisionPolicy::Rename,
+            theme: "system".to_string(),
+            clipboard_monitoring_enabled: false,
+            notification_enabled: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DownloadFilter {
+    pub status: Option<DownloadStatus>,
+    pub category: Option<String>,
+    pub query: Option<String>,
+}

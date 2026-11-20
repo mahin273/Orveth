@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/orveth-core",
+    "crates/orveth-download",
+    "crates/orveth-scheduler",
+    "crates/orveth-storage",
+    "crates/orveth-persistence",
+    "crates/orveth-integrity",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Mahin Khan"]
+license = "MIT"
+repository = "https://github.com/mahin273/Orveth"
+
+[workspace.dependencies]
+tokio = { version = "1.43", features = ["full"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio", "sqlite", "migrate"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.13", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+thiserror = "2.0"
+anyhow = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+sha2 = "0.10"
+hex = "0.4"
+url = "2.5"
+async-trait = "0.1"
+futures-util = "0.3"
+tempfile = "3.16"
+
+# Internal crates
+orveth-core = { path = "crates/orveth-core" }
+orveth-download = { path = "crates/orveth-download" }
+orveth-scheduler = { path = "crates/orveth-scheduler" }
+orveth-storage = { path = "crates/orveth-storage" }
+orveth-persistence = { path = "crates/orveth-persistence" }
+orveth-integrity = { path = "crates/orveth-integrity" }
