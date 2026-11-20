@@ -1,0 +1,43 @@
+# Build targets
+target/
+dist/
+dist-ssr/
+*.AppImage
+
+# Node / Frontend
+node_modules/
+.pnpm-store/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Databases and storage
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+storage/
+temp/
+downloads/
+test_downloads/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# IDEs and OS files
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Cargo locks / cache
+Cargo.lock.bak
