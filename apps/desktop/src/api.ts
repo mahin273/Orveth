@@ -1,0 +1,135 @@
+import { invoke } from "@tauri-apps/api/core";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
+
+export type DownloadStatus =
+  | "queued"
+  | "preparing"
+  | "downloading"
+  | "pausing"
+  | "paused"
+  | "retrying"
+  | "verifying"
+  | "completed"
+  | "failed"
+  | "canceled"
+  | "needs_attention";
+
+export type VerificationStatus =
+  | "not_requested"
+  | "calculated"
+  | "matched"
+  | "mismatch"
+  | "error";
+
+export interface DownloadJob {
+  id: string;
+  url: string;
+  final_url?: string;
+  file_name: string;
+  destination: string;
+  temp_path?: string;
+  total_bytes?: number;
+  downloaded_bytes: number;
+  status: DownloadStatus;
+  category?: string;
+  priority: number;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+  retry_count: number;
+  retry_limit: number;
+  expected_hash?: string;
+  hash_algorithm?: string;
+  verification_status: VerificationStatus;
+  segmented: boolean;
+  last_error_code?: string;
+  last_error_message?: string;
+}
+
+export interface EngineSettings {
+  default_destination: string;
+  ask_destination_each_time: boolean;
+  max_active_downloads: number;
+  default_segment_count: number;
+  max_segment_count: number;
+  retry_limit: number;
+  global_bandwidth_limit_bytes_per_sec?: number;
+  collision_policy: "rename" | "overwrite" | "prompt";
+  theme: string;
+  clipboard_monitoring_enabled: boolean;
+  notification_enabled: boolean;
+}
+
+export interface DownloadFilter {
+  status?: DownloadStatus;
+  category?: string;
+  query?: string;
+}
+
+export const api = {
+  async addDownload(
+    url: string,
+    destinationDir?: string,
+    customFileName?: string,
+    expectedHash?: string
+  ): Promise<DownloadJob> {
+    return invoke("add_download", {
+      url,
+      destinationDir,
+      customFileName,
+      expectedHash,
+    });
+  },
+
+  async pauseDownload(id: string): Promise<void> {
+    return invoke("pause_download", { id });
+  },
+
+  async resumeDownload(id: string): Promise<void> {
+    return invoke("resume_download", { id });
+  },
+
+  async cancelDownload(id: string, deletePartial: boolean): Promise<void> {
+    return invoke("cancel_download", { id, deletePartial });
+  },
+
+  async retryDownload(id: string): Promise<void> {
+    return invoke("retry_download", { id });
+  },
+
+  async removeDownload(id: string, removeFile: boolean): Promise<void> {
+    return invoke("remove_download", { id, removeFile });
+  },
+
+  async listDownloads(filter?: DownloadFilter): Promise<DownloadJob[]> {
+    return invoke("list_downloads", { filter: filter || {} });
+  },
+
+  async getDownload(id: string): Promise<DownloadJob> {
+    return invoke("get_download", { id });
+  },
+
+  async getSettings(): Promise<EngineSettings> {
+    return invoke("get_settings");
+  },
+
+  async updateSettings(settings: EngineSettings): Promise<void> {
+    return invoke("update_settings", { settings });
+  },
+
+  async setGlobalBandwidthLimit(limit?: number): Promise<void> {
+    return invoke("set_global_bandwidth_limit", { limitBytesPerSec: limit || null });
+  },
+
+  async openFile(id: string): Promise<void> {
+    return invoke("open_file", { id });
+  },
+
+  async revealFile(id: string): Promise<void> {
+    return invoke("reveal_file", { id });
+  },
+
+  async onEngineEvent(cb: (event: any) => void): Promise<UnlistenFn> {
+    return listen("engine_event", (e) => cb(e.payload));
+  },
+};
