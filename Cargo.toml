@@ -35,7 +35,6 @@ tempfile = "3.16"
 # Internal crates
 orveth-core = { path = "crates/orveth-core" }
 orveth-download = { path = "crates/orveth-download" }
-orveth-scheduler = { path = "crates/orveth-scheduler" }
 orveth-storage = { path = "crates/orveth-storage" }
 orveth-persistence = { path = "crates/orveth-persistence" }
 orveth-integrity = { path = "crates/orveth-integrity" }
