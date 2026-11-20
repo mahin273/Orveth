@@ -991,9 +991,9 @@ dependencies = [
 name = "orveth-persistence"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "chrono",
  "orveth-core",
+ "orveth-storage",
  "serde",
  "serde_json",
  "sqlx",
