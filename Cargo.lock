@@ -962,9 +962,9 @@ name = "orveth-download"
 version = "0.1.0"
 dependencies = [
  "chrono",
+ "fastrand",
  "futures-util",
  "orveth-core",
- "orveth-storage",
  "reqwest",
  "tempfile",
  "thiserror",
