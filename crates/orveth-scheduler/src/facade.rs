@@ -5,7 +5,9 @@ use orveth_core::event::EngineEvent;
 use orveth_core::model::{DownloadFilter, DownloadJob, EngineSettings};
 use orveth_core::state::{DownloadStatus, VerificationStatus};
 use orveth_integrity::FileHasher;
-use orveth_persistence::{init_db_pool, DbPool, JobRepository, SettingsRepository, StateReconciler};
+use orveth_persistence::{
+    init_db_pool, DbPool, JobRepository, SettingsRepository, StateReconciler,
+};
 use orveth_storage::StorageManager;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -29,7 +31,10 @@ impl OrvethEngine {
 
         // Startup recovery & reconciliation
         let reconciled = StateReconciler::reconcile_on_startup(&pool, &storage).await?;
-        info!(reconciled_jobs = reconciled, "Startup state reconciliation finished");
+        info!(
+            reconciled_jobs = reconciled,
+            "Startup state reconciliation finished"
+        );
 
         let settings = SettingsRepository::get_settings(&pool).await?;
         let limiter = BandwidthLimiter::new(settings.global_bandwidth_limit_bytes_per_sec);
@@ -146,21 +151,29 @@ impl OrvethEngine {
         Ok(())
     }
 
-    pub async fn verify_download(&self, id: Uuid, expected_hash: Option<String>) -> Result<VerificationStatus> {
+    pub async fn verify_download(
+        &self,
+        id: Uuid,
+        expected_hash: Option<String>,
+    ) -> Result<VerificationStatus> {
         let job = self.get_download(id).await?;
         if !job.destination.exists() {
-            return Err(OrvethError::Storage("Target file does not exist".to_string()));
+            return Err(OrvethError::Storage(
+                "Target file does not exist".to_string(),
+            ));
         }
 
         let hash_to_check = expected_hash.as_deref().or(job.expected_hash.as_deref());
         let outcome = FileHasher::verify_sha256(&job.destination, hash_to_check).await?;
 
-        let _ = self.event_sender.send(EngineEvent::VerificationStateChanged {
-            download_id: id,
-            status: outcome.status,
-            computed_hash: Some(outcome.computed_hash),
-            expected_hash: outcome.expected_hash,
-        });
+        let _ = self
+            .event_sender
+            .send(EngineEvent::VerificationStateChanged {
+                download_id: id,
+                status: outcome.status,
+                computed_hash: Some(outcome.computed_hash),
+                expected_hash: outcome.expected_hash,
+            });
 
         Ok(outcome.status)
     }

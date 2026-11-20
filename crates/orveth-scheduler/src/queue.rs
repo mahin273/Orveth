@@ -1,4 +1,4 @@
-use crate::coordinator::DownloadCoordinator;
+use crate::coordinator::{DownloadCoordinator, JobExecutionContext};
 use crate::limiter::BandwidthLimiter;
 use orveth_core::error::Result;
 use orveth_core::event::EngineEvent;
@@ -15,13 +15,15 @@ use tokio::task::JoinHandle;
 use tracing::info;
 use uuid::Uuid;
 
+pub type ActiveJobMap = Arc<Mutex<HashMap<Uuid, (JoinHandle<()>, Arc<AtomicBool>)>>>;
+
 pub struct QueueManager {
     pool: DbPool,
     storage: StorageManager,
     client: Client,
     limiter: BandwidthLimiter,
     event_sender: broadcast::Sender<EngineEvent>,
-    active_jobs: Arc<Mutex<HashMap<Uuid, (JoinHandle<()>, Arc<AtomicBool>)>>>,
+    active_jobs: ActiveJobMap,
 }
 
 impl QueueManager {
@@ -65,25 +67,19 @@ impl QueueManager {
             let cancel_token = Arc::new(AtomicBool::new(false));
             let cancel_token_clone = cancel_token.clone();
 
-            let pool = self.pool.clone();
-            let storage = self.storage.clone();
-            let client = self.client.clone();
-            let settings_clone = settings.clone();
-            let limiter = self.limiter.clone();
-            let event_sender = self.event_sender.clone();
+            let ctx = JobExecutionContext {
+                pool: self.pool.clone(),
+                storage: self.storage.clone(),
+                client: self.client.clone(),
+                job_id,
+                settings: settings.clone(),
+                limiter: self.limiter.clone(),
+                event_sender: self.event_sender.clone(),
+                cancel_token: cancel_token_clone,
+            };
 
             let handle = tokio::spawn(async move {
-                let _ = DownloadCoordinator::run_job(
-                    pool,
-                    storage,
-                    client,
-                    job_id,
-                    settings_clone,
-                    limiter,
-                    event_sender,
-                    cancel_token_clone,
-                )
-                .await;
+                let _ = DownloadCoordinator::run_job(ctx).await;
             });
 
             active.insert(job_id, (handle, cancel_token));
