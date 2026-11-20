@@ -971,7 +971,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tracing",
 ]
 
 [[package]]
@@ -1018,7 +1017,6 @@ dependencies = [
  "tempfile",
  "thiserror",
  "tokio",
- "tracing",
  "uuid",
 ]
 

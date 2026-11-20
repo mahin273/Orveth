@@ -15,156 +15,151 @@ use tokio::sync::broadcast;
 use tracing::{error, info};
 use uuid::Uuid;
 
+#[derive(Clone)]
+pub struct JobExecutionContext {
+    pub pool: DbPool,
+    pub storage: StorageManager,
+    pub client: Client,
+    pub job_id: Uuid,
+    pub settings: EngineSettings,
+    pub limiter: BandwidthLimiter,
+    pub event_sender: broadcast::Sender<EngineEvent>,
+    pub cancel_token: Arc<AtomicBool>,
+}
+
 pub struct DownloadCoordinator;
 
 impl DownloadCoordinator {
-    pub async fn run_job(
-        pool: DbPool,
-        storage: StorageManager,
-        client: Client,
-        job_id: Uuid,
-        settings: EngineSettings,
-        global_limiter: BandwidthLimiter,
-        event_sender: broadcast::Sender<EngineEvent>,
-        cancel_token: Arc<AtomicBool>,
-    ) -> Result<()> {
-        let job = match JobRepository::get(&pool, job_id).await? {
+    pub async fn run_job(ctx: JobExecutionContext) -> Result<()> {
+        let job = match JobRepository::get(&ctx.pool, ctx.job_id).await? {
             Some(j) => j,
-            None => return Err(OrvethError::JobNotFound(job_id.to_string())),
+            None => return Err(OrvethError::JobNotFound(ctx.job_id.to_string())),
         };
 
-        if cancel_token.load(Ordering::Relaxed) {
+        if ctx.cancel_token.load(Ordering::Relaxed) {
             return Ok(());
         }
 
         // 1. Transition to Preparing
-        let _ = JobRepository::update_status(&pool, job_id, DownloadStatus::Preparing).await;
-        let _ = event_sender.send(EngineEvent::DownloadStateChanged {
-            download_id: job_id,
+        let _ =
+            JobRepository::update_status(&ctx.pool, ctx.job_id, DownloadStatus::Preparing).await;
+        let _ = ctx.event_sender.send(EngineEvent::DownloadStateChanged {
+            download_id: ctx.job_id,
             previous_status: job.status,
             new_status: DownloadStatus::Preparing,
             timestamp: Utc::now(),
         });
 
         // Initialize temp storage for job
-        let _temp_dir = storage.init_job_storage(job_id).await?;
+        let _temp_dir = ctx.storage.init_job_storage(ctx.job_id).await?;
 
         // 2. Probe server capabilities
-        let caps = match CapabilityDetector::detect(&client, &job.url).await {
+        let caps = match CapabilityDetector::detect(&ctx.client, &job.url).await {
             Ok(c) => c,
             Err(e) => {
-                Self::handle_job_error(&pool, &event_sender, job_id, &e).await;
+                Self::handle_job_error(&ctx.pool, &ctx.event_sender, ctx.job_id, &e).await;
                 return Err(e);
             }
         };
 
-        if cancel_token.load(Ordering::Relaxed) {
-            let _ = JobRepository::update_status(&pool, job_id, DownloadStatus::Paused).await;
+        if ctx.cancel_token.load(Ordering::Relaxed) {
+            let _ =
+                JobRepository::update_status(&ctx.pool, ctx.job_id, DownloadStatus::Paused).await;
             return Ok(());
         }
 
         // Update total_bytes in DB if detected
         if let Some(len) = caps.content_length {
-            let _ = JobRepository::update_progress(&pool, job_id, job.downloaded_bytes, Some(len)).await;
+            let _ = JobRepository::update_progress(
+                &ctx.pool,
+                ctx.job_id,
+                job.downloaded_bytes,
+                Some(len),
+            )
+            .await;
         }
 
-        let is_segmented = caps.range_supported
-            && caps.content_length.map(|l| l > 256 * 1024).unwrap_or(false);
+        let is_segmented =
+            caps.range_supported && caps.content_length.map(|l| l > 256 * 1024).unwrap_or(false);
 
         // 3. Transition to Downloading
-        let _ = JobRepository::update_status(&pool, job_id, DownloadStatus::Downloading).await;
-        let _ = event_sender.send(EngineEvent::DownloadStateChanged {
-            download_id: job_id,
+        let _ =
+            JobRepository::update_status(&ctx.pool, ctx.job_id, DownloadStatus::Downloading).await;
+        let _ = ctx.event_sender.send(EngineEvent::DownloadStateChanged {
+            download_id: ctx.job_id,
             previous_status: DownloadStatus::Preparing,
             new_status: DownloadStatus::Downloading,
             timestamp: Utc::now(),
         });
 
         let download_result = if is_segmented {
-            Self::execute_segmented(
-                &pool,
-                &storage,
-                &client,
-                &job,
-                caps.content_length.unwrap(),
-                settings.default_segment_count,
-                &global_limiter,
-                &event_sender,
-                cancel_token.clone(),
-            )
-            .await
+            Self::execute_segmented(&ctx, &job, caps.content_length.unwrap()).await
         } else {
-            Self::execute_single_stream(
-                &pool,
-                &storage,
-                &client,
-                &job,
-                &global_limiter,
-                &event_sender,
-                cancel_token.clone(),
-            )
-            .await
+            Self::execute_single_stream(&ctx, &job).await
         };
 
         match download_result {
             Ok(assembled_file) => {
                 // 4. Verification
-                let _ = JobRepository::update_status(&pool, job_id, DownloadStatus::Verifying).await;
-                let _ = event_sender.send(EngineEvent::DownloadStateChanged {
-                    download_id: job_id,
+                let _ =
+                    JobRepository::update_status(&ctx.pool, ctx.job_id, DownloadStatus::Verifying)
+                        .await;
+                let _ = ctx.event_sender.send(EngineEvent::DownloadStateChanged {
+                    download_id: ctx.job_id,
                     previous_status: DownloadStatus::Downloading,
                     new_status: DownloadStatus::Verifying,
                     timestamp: Utc::now(),
                 });
 
-                let verif_outcome = FileHasher::verify_sha256(
-                    &assembled_file,
-                    job.expected_hash.as_deref(),
-                )
-                .await?;
+                let verif_outcome =
+                    FileHasher::verify_sha256(&assembled_file, job.expected_hash.as_deref())
+                        .await?;
 
-                let _ = event_sender.send(EngineEvent::VerificationStateChanged {
-                    download_id: job_id,
-                    status: verif_outcome.status,
-                    computed_hash: Some(verif_outcome.computed_hash.clone()),
-                    expected_hash: verif_outcome.expected_hash.clone(),
-                });
+                let _ = ctx
+                    .event_sender
+                    .send(EngineEvent::VerificationStateChanged {
+                        download_id: ctx.job_id,
+                        status: verif_outcome.status,
+                        computed_hash: Some(verif_outcome.computed_hash.clone()),
+                        expected_hash: verif_outcome.expected_hash.clone(),
+                    });
 
                 // 5. Atomic Finalize
                 let final_dest = StorageManager::finalize_file(
                     &assembled_file,
                     &job.destination,
-                    settings.collision_policy,
+                    ctx.settings.collision_policy,
                 )
                 .await?;
 
                 let total_size = StorageManager::get_file_size(&final_dest).await?;
                 let _ = JobRepository::update_completed(
-                    &pool,
-                    job_id,
+                    &ctx.pool,
+                    ctx.job_id,
                     &final_dest,
                     total_size,
                     verif_outcome.status,
                 )
                 .await;
 
-                let _ = storage.cleanup_job(job_id).await;
+                let _ = ctx.storage.cleanup_job(ctx.job_id).await;
 
-                let _ = event_sender.send(EngineEvent::DownloadCompleted {
-                    download_id: job_id,
+                let _ = ctx.event_sender.send(EngineEvent::DownloadCompleted {
+                    download_id: ctx.job_id,
                     file_name: job.file_name.clone(),
                     destination_path: final_dest.display().to_string(),
                     total_bytes: total_size,
                 });
 
-                info!(job_id = %job_id, final_path = %final_dest.display(), "Download completed successfully");
+                info!(job_id = %ctx.job_id, final_path = %final_dest.display(), "Download completed successfully");
                 Ok(())
             }
             Err(OrvethError::Canceled) => {
-                info!(job_id = %job_id, "Download paused/canceled by request");
-                let _ = JobRepository::update_status(&pool, job_id, DownloadStatus::Paused).await;
-                let _ = event_sender.send(EngineEvent::DownloadStateChanged {
-                    download_id: job_id,
+                info!(job_id = %ctx.job_id, "Download paused/canceled by request");
+                let _ = JobRepository::update_status(&ctx.pool, ctx.job_id, DownloadStatus::Paused)
+                    .await;
+                let _ = ctx.event_sender.send(EngineEvent::DownloadStateChanged {
+                    download_id: ctx.job_id,
                     previous_status: DownloadStatus::Downloading,
                     new_status: DownloadStatus::Paused,
                     timestamp: Utc::now(),
@@ -172,62 +167,55 @@ impl DownloadCoordinator {
                 Ok(())
             }
             Err(e) => {
-                Self::handle_job_error(&pool, &event_sender, job_id, &e).await;
+                Self::handle_job_error(&ctx.pool, &ctx.event_sender, ctx.job_id, &e).await;
                 Err(e)
             }
         }
     }
 
     async fn execute_segmented(
-        pool: &DbPool,
-        storage: &StorageManager,
-        client: &Client,
+        ctx: &JobExecutionContext,
         job: &DownloadJob,
         total_length: u64,
-        target_segments: usize,
-        limiter: &BandwidthLimiter,
-        event_sender: &broadcast::Sender<EngineEvent>,
-        cancel_token: Arc<AtomicBool>,
     ) -> Result<std::path::PathBuf> {
-        let temp_dir = storage.temp_dir_for_job(job.id);
-        let mut segments = SegmentRepository::get_for_job(pool, job.id).await?;
+        let temp_dir = ctx.storage.temp_dir_for_job(job.id);
+        let mut segments = SegmentRepository::get_for_job(&ctx.pool, job.id).await?;
 
         if segments.is_empty() {
-            let planned = SegmentPlanner::plan(job.id, total_length, target_segments, &temp_dir)?;
-            SegmentRepository::insert_batch(pool, &planned).await?;
+            let planned = SegmentPlanner::plan(
+                job.id,
+                total_length,
+                ctx.settings.default_segment_count,
+                &temp_dir,
+            )?;
+            SegmentRepository::insert_batch(&ctx.pool, &planned).await?;
             segments = planned;
         }
 
         let mut set = tokio::task::JoinSet::new();
 
         for mut seg in segments.clone() {
-            let client = client.clone();
+            let client = ctx.client.clone();
             let url = job.url.clone();
-            let cancel = cancel_token.clone();
-            let _limiter = limiter.clone();
-            let event_sender = event_sender.clone();
+            let cancel = ctx.cancel_token.clone();
+            let _limiter = ctx.limiter.clone();
+            let event_sender = ctx.event_sender.clone();
             let job_id = job.id;
-            let pool = pool.clone();
+            let pool = ctx.pool.clone();
 
             set.spawn(async move {
                 if seg.is_completed() {
                     return Ok(seg);
                 }
 
-                let res = SegmentWorker::download(
-                    &client,
-                    &url,
-                    &mut seg,
-                    cancel,
-                    |delta| {
-                        let _ = event_sender.send(EngineEvent::DownloadProgress {
-                            download_id: job_id,
-                            downloaded_bytes: delta,
-                            total_bytes: Some(total_length),
-                            progress_ratio: None,
-                        });
-                    },
-                )
+                let res = SegmentWorker::download(&client, &url, &mut seg, cancel, |delta| {
+                    let _ = event_sender.send(EngineEvent::DownloadProgress {
+                        download_id: job_id,
+                        downloaded_bytes: delta,
+                        total_bytes: Some(total_length),
+                        progress_ratio: None,
+                    });
+                })
                 .await;
 
                 if res.is_ok() {
@@ -254,7 +242,7 @@ impl DownloadCoordinator {
         }
 
         let assembled_path = temp_dir.join("assembled.tmp");
-        storage
+        ctx.storage
             .assemble_segments(job.id, &completed_segments, &assembled_path)
             .await?;
 
@@ -262,23 +250,18 @@ impl DownloadCoordinator {
     }
 
     async fn execute_single_stream(
-        _pool: &DbPool,
-        storage: &StorageManager,
-        client: &Client,
+        ctx: &JobExecutionContext,
         job: &DownloadJob,
-        _limiter: &BandwidthLimiter,
-        event_sender: &broadcast::Sender<EngineEvent>,
-        cancel_token: Arc<AtomicBool>,
     ) -> Result<std::path::PathBuf> {
-        let temp_file = storage.single_stream_temp_path(job.id, &job.file_name);
-        let event_sender = event_sender.clone();
+        let temp_file = ctx.storage.single_stream_temp_path(job.id, &job.file_name);
+        let event_sender = ctx.event_sender.clone();
         let job_id = job.id;
 
         SingleStreamWorker::download(
-            client,
+            &ctx.client,
             &job.url,
             &temp_file,
-            cancel_token,
+            ctx.cancel_token.clone(),
             |delta, total| {
                 let _ = event_sender.send(EngineEvent::DownloadProgress {
                     download_id: job_id,

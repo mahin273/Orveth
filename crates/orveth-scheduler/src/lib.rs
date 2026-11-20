@@ -68,12 +68,12 @@ mod tests {
         // Wait for completed event
         let mut completed = false;
         for _ in 0..20 {
-            if let Ok(event) = rx.try_recv() {
-                if let orveth_core::EngineEvent::DownloadCompleted { download_id, .. } = event {
-                    if download_id == job.id {
-                        completed = true;
-                        break;
-                    }
+            if let Ok(orveth_core::EngineEvent::DownloadCompleted { download_id, .. }) =
+                rx.try_recv()
+            {
+                if download_id == job.id {
+                    completed = true;
+                    break;
                 }
             }
             tokio::time::sleep(std::time::Duration::from_millis(50)).await;
