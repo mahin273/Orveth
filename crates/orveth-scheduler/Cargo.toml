@@ -1,0 +1,23 @@
+[package]
+name = "orveth-scheduler"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+orveth-core.workspace = true
+orveth-download.workspace = true
+orveth-storage.workspace = true
+orveth-persistence.workspace = true
+orveth-integrity.workspace = true
+tokio.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+async-trait.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
