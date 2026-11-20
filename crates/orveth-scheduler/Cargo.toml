@@ -13,11 +13,11 @@ orveth-storage.workspace = true
 orveth-persistence.workspace = true
 orveth-integrity.workspace = true
 tokio.workspace = true
+reqwest.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 chrono.workspace = true
-async-trait.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
