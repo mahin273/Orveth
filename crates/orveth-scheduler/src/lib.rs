@@ -1,8 +1,10 @@
+pub mod bridge;
 pub mod coordinator;
 pub mod facade;
 pub mod limiter;
 pub mod queue;
 
+pub use bridge::LocalBridgeServer;
 pub use coordinator::DownloadCoordinator;
 pub use facade::OrvethEngine;
 pub use limiter::BandwidthLimiter;

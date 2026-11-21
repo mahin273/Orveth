@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Orveth Integration</title>
+  <style>
+    body {
+      width: 320px;
+      margin: 0;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background-color: #09090b;
+      color: #f4f4f5;
+      font-size: 13px;
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #27272a;
+      padding-bottom: 10px;
+      margin-bottom: 14px;
+    }
+    .title {
+      font-weight: 600;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 9999px;
+      font-family: monospace;
+    }
+    .status-online {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .status-offline {
+      background: rgba(239, 68, 68, 0.15);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .field {
+      margin-bottom: 12px;
+    }
+    label {
+      display: block;
+      color: #a1a1aa;
+      font-size: 11px;
+      margin-bottom: 4px;
+    }
+    input[type="text"], input[type="number"] {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 7px 9px;
+      background: #18181b;
+      border: 1px solid #27272a;
+      border-radius: 6px;
+      color: #f4f4f5;
+      font-size: 12px;
+      outline: none;
+    }
+    input:focus {
+      border-color: #52525b;
+    }
+    button {
+      width: 100%;
+      padding: 8px;
+      background: #fafafa;
+      color: #09090b;
+      border: none;
+      border-radius: 6px;
+      font-weight: 500;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button:hover {
+      background: #e4e4e7;
+    }
+    .message {
+      margin-top: 10px;
+      font-size: 11px;
+      text-align: center;
+    }
+    .success { color: #34d399; }
+    .error { color: #f87171; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="title">Orveth</div>
+    <div id="statusBadge" class="status-badge status-offline">● Checking...</div>
+  </div>
+
+  <form id="downloadForm">
+    <div class="field">
+      <label for="urlInput">Quick Download URL</label>
+      <input type="text" id="urlInput" placeholder="https://example.com/file.zip" required autofocus>
+    </div>
+    <button type="submit" id="submitBtn">Send to Orveth</button>
+  </form>
+
+  <div id="feedback" class="message"></div>
+
+  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 10px;">
+    <div class="field">
+      <label for="tokenInput">Bridge Token (Optional)</label>
+      <input type="text" id="tokenInput" placeholder="Security Token">
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

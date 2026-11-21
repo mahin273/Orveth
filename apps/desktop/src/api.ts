@@ -71,6 +71,16 @@ export interface EngineSettings {
   notification_enabled: boolean;
   proxy_url?: string;
   ytdlp_path?: string;
+  bridge_enabled?: boolean;
+  bridge_port?: number;
+  bridge_token?: string;
+}
+
+export interface BridgeStatus {
+  running: boolean;
+  port: number;
+  token?: string;
+  native_hosts_installed: boolean;
 }
 
 export interface YtDlpStatus {
@@ -199,6 +209,14 @@ export const api = {
 
   async resolveMediaStream(url: string, formatId: string): Promise<string> {
     return invoke("resolve_media_stream", { url, formatId });
+  },
+
+  async getBridgeStatus(): Promise<BridgeStatus> {
+    return invoke("get_bridge_status");
+  },
+
+  async installNativeManifests(): Promise<string[]> {
+    return invoke("install_native_manifests");
   },
 
   async onEngineEvent(cb: (event: any) => void): Promise<UnlistenFn> {

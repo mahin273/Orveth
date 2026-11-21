@@ -496,10 +496,15 @@ export const App: React.FC = () => {
               Proxy: {settings.proxy_url.replace(/:[^:@]+@/, ":***@")}
             </span>
           )}
+          {settings.bridge_enabled !== false && (
+            <span className="text-blue-400 font-mono text-[10px] bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20">
+              Bridge: :{settings.bridge_port || 41527}
+            </span>
+          )}
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.2.2
+          Orveth 0.2.3
         </div>
       </footer>
 
