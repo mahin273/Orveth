@@ -1,12 +1,12 @@
 import React from "react";
-import { Plus, Search, Pause, Play } from "lucide-react";
+import { Plus, Search, Pause, Play, Magnet, Film } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ToolbarProps {
   breadcrumb: string;
   searchQuery: string;
   onSearchChange: (query: string) => void;
-  onOpenAddModal: () => void;
+  onOpenAddModal: (initialMode?: "single" | "batch" | "media" | "torrent") => void;
   isAllPaused?: boolean;
   onTogglePauseAll: () => void;
 }
@@ -29,9 +29,9 @@ export const Toolbar: React.FC<ToolbarProps> = ({
       </div>
 
       {/* Right Action Elements */}
-      <div className="flex items-center gap-2.5">
+      <div className="flex items-center gap-2">
         {/* Search input with Ctrl K */}
-        <div className="relative w-64">
+        <div className="relative w-56 sm:w-64">
           <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           <input
             type="text"
@@ -50,7 +50,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           variant="outline"
           size="sm"
           onClick={onTogglePauseAll}
-          className="h-8 px-3 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800/90 hover:border-zinc-700 gap-1.5 font-normal"
+          className="h-8 px-2.5 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800/90 hover:border-zinc-700 gap-1.5 font-normal"
         >
           {isAllPaused ? (
             <>
@@ -65,11 +65,35 @@ export const Toolbar: React.FC<ToolbarProps> = ({
           )}
         </Button>
 
+        {/* Torrent / Magnet Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onOpenAddModal("torrent")}
+          className="h-8 px-2.5 text-xs bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-300 border-cyan-800/70 hover:border-cyan-600 gap-1.5 font-medium transition-colors"
+          title="Add BitTorrent file (.torrent) or Magnet link"
+        >
+          <Magnet className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Torrent</span>
+        </Button>
+
+        {/* Video / Media Button */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => onOpenAddModal("media")}
+          className="h-8 px-2.5 text-xs bg-purple-950/40 hover:bg-purple-900/50 text-purple-300 border-purple-800/70 hover:border-purple-600 gap-1.5 font-medium transition-colors"
+          title="Download streaming video or audio via yt-dlp"
+        >
+          <Film className="w-3.5 h-3.5 text-purple-400" />
+          <span>Media</span>
+        </Button>
+
         {/* Add URL button */}
         <Button
-          onClick={onOpenAddModal}
+          onClick={() => onOpenAddModal("single")}
           size="sm"
-          className="h-8 px-3.5 text-xs bg-white text-black hover:bg-zinc-200 font-semibold gap-1.5 shadow-sm rounded-lg"
+          className="h-8 px-3 text-xs bg-white text-black hover:bg-zinc-200 font-semibold gap-1.5 shadow-sm rounded-lg"
         >
           <Plus className="w-3.5 h-3.5 text-black stroke-[2.5]" />
           <span>Add URL</span>

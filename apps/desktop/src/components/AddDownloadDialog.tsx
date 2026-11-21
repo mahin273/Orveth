@@ -42,6 +42,7 @@ interface AddDownloadDialogProps {
   onAdd: (url: string, destination?: string, filename?: string, hash?: string) => Promise<void>;
   onAddBatch?: (urls: string[], destination?: string) => Promise<void>;
   defaultDestination: string;
+  initialMode?: "single" | "batch" | "media" | "torrent";
 }
 
 export function parseAndExpandUrls(input: string): string[] {
@@ -111,8 +112,15 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
   onAdd,
   onAddBatch,
   defaultDestination,
+  initialMode = "single",
 }) => {
-  const [mode, setMode] = useState<"single" | "batch" | "media" | "torrent">("single");
+  const [mode, setMode] = useState<"single" | "batch" | "media" | "torrent">(initialMode);
+
+  useEffect(() => {
+    if (isOpen && initialMode) {
+      setMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
 
   // Single mode state
   const [url, setUrl] = useState("");
