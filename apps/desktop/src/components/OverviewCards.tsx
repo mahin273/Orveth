@@ -48,26 +48,29 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
 
   // Generate an SVG path for the speed mini-sparkline inside Card 2
   const renderSparkline = () => {
-    const points = speedHistory.length >= 2 ? speedHistory : [0, 0];
-    const max = Math.max(...points, 0.1);
+    const rawPoints = speedHistory.length >= 2 ? speedHistory : [0, 0];
+    const currentMB = +(totalSpeedBytesPerSec / (1024 * 1024)).toFixed(1);
+    const points = [...rawPoints.slice(-29), currentMB];
+    const peak = Math.max(...points, 0.5);
+    const max = peak * 1.25;
     const width = 80;
     const height = 24;
     const step = width / (points.length - 1);
 
     const pathData = points
       .map((val, idx) => {
-        const x = idx * step;
-        const y = max > 0 ? height - (val / max) * (height - 4) - 2 : height - 2;
+        const x = (idx * step).toFixed(1);
+        const y = (height - (val / max) * (height - 6) - 3).toFixed(1);
         return `${idx === 0 ? "M" : "L"} ${x} ${y}`;
       })
       .join(" ");
 
     return (
-      <svg width={width} height={height} className="overflow-visible opacity-80">
+      <svg width={width} height={height} className="overflow-visible opacity-90">
         <path
           d={pathData}
           fill="none"
-          stroke="#ffffff"
+          stroke="#38bdf8"
           strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"

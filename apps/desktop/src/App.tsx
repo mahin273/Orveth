@@ -14,7 +14,7 @@ export const App: React.FC = () => {
     default_destination: "~/Downloads",
     ask_destination_each_time: false,
     max_active_downloads: 3,
-    default_segment_count: 4,
+    default_segment_count: 8,
     max_segment_count: 16,
     retry_limit: 5,
     collision_policy: "rename",
@@ -32,6 +32,7 @@ export const App: React.FC = () => {
 
   // Live speed tracking
   const [speedsById, setSpeedsById] = useState<Record<string, number>>({});
+  const [peakSpeedsById, setPeakSpeedsById] = useState<Record<string, number>>({});
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
 
   const prevBytesRef = React.useRef<{ time: number; bytesById: Record<string, number> }>({
@@ -55,11 +56,14 @@ export const App: React.FC = () => {
         if (["downloading", "retrying"].includes(job.status)) {
           setSpeedsById((prevSpeeds) => {
             const currentSpeed = prevSpeeds[job.id] || 0;
-            if (currentSpeed === 0 && polledSpeed > 0) {
-              return { ...prevSpeeds, [job.id]: polledSpeed };
-            }
-            return prevSpeeds;
+            return { ...prevSpeeds, [job.id]: currentSpeed > 0 ? currentSpeed : polledSpeed };
           });
+          if (polledSpeed > 0) {
+            setPeakSpeedsById((prev) => ({
+              ...prev,
+              [job.id]: Math.max(prev[job.id] || 0, polledSpeed),
+            }));
+          }
         } else {
           setSpeedsById((prevSpeeds) => {
             if (prevSpeeds[job.id]) {
@@ -114,9 +118,14 @@ export const App: React.FC = () => {
             )
           );
         } else if (type === "download_speed") {
+          const speed = payload.bytes_per_sec;
           setSpeedsById((prev) => ({
             ...prev,
-            [payload.download_id]: payload.bytes_per_sec,
+            [payload.download_id]: speed,
+          }));
+          setPeakSpeedsById((prev) => ({
+            ...prev,
+            [payload.download_id]: Math.max(prev[payload.download_id] || 0, speed),
           }));
         } else if (
           type === "download_state_changed" ||
@@ -154,15 +163,15 @@ export const App: React.FC = () => {
     return sum;
   }, [jobs, speedsById]);
 
-  // Sample speed history every second without getting reset by rapid speed updates
+  // Sample speed history every 500ms without getting reset by rapid speed updates
   const totalSpeedRef = React.useRef(totalSpeed);
   totalSpeedRef.current = totalSpeed;
 
   useEffect(() => {
     const timer = setInterval(() => {
       const mbps = +(totalSpeedRef.current / (1024 * 1024)).toFixed(1);
-      setSpeedHistory((prev) => [...prev.slice(-29), mbps]);
-    }, 1000);
+      setSpeedHistory((prev) => [...prev.slice(-59), mbps]);
+    }, 500);
     return () => clearInterval(timer);
   }, []);
 
@@ -397,6 +406,7 @@ export const App: React.FC = () => {
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
             speedBytesPerSec={speedsById[selectedJob.id] || 0}
+            peakSpeedBytesPerSec={peakSpeedsById[selectedJob.id] || speedsById[selectedJob.id] || 0}
             speedHistory={speedHistory}
           />
         )}
@@ -423,7 +433,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.1.5
+          Orveth 0.1.6
         </div>
       </footer>
 
