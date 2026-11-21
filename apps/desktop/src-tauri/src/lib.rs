@@ -86,6 +86,15 @@ async fn get_download(state: State<'_, Arc<AppState>>, id: String) -> Result<Dow
 }
 
 #[tauri::command]
+async fn get_segments(
+    state: State<'_, Arc<AppState>>,
+    id: String,
+) -> Result<Vec<orveth_core::model::Segment>, String> {
+    let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
+    state.engine.get_segments(uuid).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn get_settings(state: State<'_, Arc<AppState>>) -> Result<EngineSettings, String> {
     state.engine.get_settings().await.map_err(|e| e.to_string())
 }
@@ -175,6 +184,7 @@ pub fn run() {
             remove_download,
             list_downloads,
             get_download,
+            get_segments,
             get_settings,
             update_settings,
             set_global_bandwidth_limit,

@@ -21,6 +21,17 @@ export type VerificationStatus =
   | "mismatch"
   | "error";
 
+export interface Segment {
+  id: string;
+  download_id: string;
+  start_byte: number;
+  end_byte: number;
+  received_bytes: number;
+  status: "pending" | "downloading" | "paused" | "retrying" | "completed" | "failed";
+  retry_count: number;
+  updated_at: string;
+}
+
 export interface DownloadJob {
   id: string;
   url: string;
@@ -107,6 +118,10 @@ export const api = {
 
   async getDownload(id: string): Promise<DownloadJob> {
     return invoke("get_download", { id });
+  },
+
+  async getSegments(id: string): Promise<Segment[]> {
+    return invoke("get_segments", { id });
   },
 
   async getSettings(): Promise<EngineSettings> {
