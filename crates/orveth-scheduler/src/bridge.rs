@@ -330,9 +330,18 @@ impl LocalBridgeServer {
     /// Installs Native Messaging Hosts for Chrome, Chromium, Brave, Edge, and Firefox.
     pub async fn install_native_manifests(token: Option<&str>) -> Result<Vec<PathBuf>> {
         let home = std::env::var("HOME")
-            .map_err(|_| OrvethError::Storage("HOME environment variable not set".to_string()))?;
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .map_err(|_| {
+                OrvethError::Storage(
+                    "Neither HOME nor USERPROFILE environment variable is set".to_string(),
+                )
+            })?;
 
-        let bin_dir = PathBuf::from(&home).join(".local/share/orveth/bin");
+        let bin_dir = if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+            PathBuf::from(local_app).join("Orveth").join("bin")
+        } else {
+            PathBuf::from(&home).join(".local/share/orveth/bin")
+        };
         tokio::fs::create_dir_all(&bin_dir).await.map_err(|e| {
             OrvethError::Storage(format!("Failed to create Orveth bin directory: {e}"))
         })?;
@@ -456,12 +465,13 @@ if __name__ == "__main__":
 
     /// Checks if any Native Messaging manifest is installed.
     pub fn check_native_manifests_installed() -> bool {
-        if let Ok(home) = std::env::var("HOME") {
+        let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
+        if let Ok(h) = home {
             let checks = [
-                PathBuf::from(&home).join(".config/google-chrome/NativeMessagingHosts/com.orveth.downloader.json"),
-                PathBuf::from(&home).join(".config/chromium/NativeMessagingHosts/com.orveth.downloader.json"),
-                PathBuf::from(&home).join(".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.orveth.downloader.json"),
-                PathBuf::from(&home).join(".mozilla/native-messaging-hosts/com.orveth.downloader.json"),
+                PathBuf::from(&h).join(".config/google-chrome/NativeMessagingHosts/com.orveth.downloader.json"),
+                PathBuf::from(&h).join(".config/chromium/NativeMessagingHosts/com.orveth.downloader.json"),
+                PathBuf::from(&h).join(".config/BraveSoftware/Brave-Browser/NativeMessagingHosts/com.orveth.downloader.json"),
+                PathBuf::from(&h).join(".mozilla/native-messaging-hosts/com.orveth.downloader.json"),
             ];
             for p in &checks {
                 if p.is_file() {

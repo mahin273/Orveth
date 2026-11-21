@@ -271,8 +271,14 @@ impl OrvethEngine {
     pub async fn install_ytdlp(&self) -> Result<YtDlpStatus> {
         let settings = SettingsRepository::get_settings(&self.pool).await?;
         let client = QueueManager::build_client(settings.proxy_url.as_deref());
-        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-        let target_dir = PathBuf::from(home).join(".local/share/orveth/bin");
+        let target_dir = if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+            PathBuf::from(local_app).join("Orveth").join("bin")
+        } else {
+            let home = std::env::var("HOME")
+                .or_else(|_| std::env::var("USERPROFILE"))
+                .unwrap_or_else(|_| ".".to_string());
+            PathBuf::from(home).join(".local/share/orveth/bin")
+        };
 
         let status = MediaExtractor::install_ytdlp(&client, &target_dir).await?;
         if let Some(ref path) = status.path {
