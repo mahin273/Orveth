@@ -2,12 +2,15 @@ import React from "react";
 import {
   Download,
   Clock,
-  CheckCircle,
+  CheckCircle2,
   AlertCircle,
   Layers,
   Settings,
   HardDriveDownload,
 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 
 interface SidebarProps {
   currentTab: string;
@@ -26,23 +29,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: "all", label: "All Downloads", icon: Layers, count: counts.all || 0 },
     { id: "active", label: "Active", icon: Download, count: counts.active || 0 },
     { id: "queued", label: "Queued", icon: Clock, count: counts.queued || 0 },
-    { id: "completed", label: "Completed", icon: CheckCircle, count: counts.completed || 0 },
+    { id: "completed", label: "Completed", icon: CheckCircle2, count: counts.completed || 0 },
     { id: "failed", label: "Failed", icon: AlertCircle, count: counts.failed || 0 },
   ];
 
   return (
-    <aside className="w-64 bg-slate-900/60 border-r border-slate-800 flex flex-col justify-between p-4 shrink-0 select-none">
-      <div>
-        {/* Brand */}
-        <div className="flex items-center gap-3 px-2 py-3 mb-6">
-          <div className="w-9 h-9 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md shadow-indigo-500/20">
-            <HardDriveDownload className="w-5 h-5" />
+    <aside className="w-60 bg-black border-r border-border flex flex-col justify-between p-3 shrink-0 select-none">
+      <div className="space-y-4">
+        {/* Brand header */}
+        <div className="flex items-center gap-2.5 px-3 py-2">
+          <div className="w-7 h-7 rounded-md bg-white text-black flex items-center justify-center font-bold shadow-sm">
+            <HardDriveDownload className="w-4 h-4 text-black" />
           </div>
-          <div>
-            <h1 className="font-bold text-lg text-slate-100 tracking-tight leading-none">Orveth</h1>
-            <span className="text-xs text-indigo-400 font-medium">Download Engine</span>
+          <div className="flex items-baseline gap-2">
+            <span className="font-semibold text-sm tracking-tight text-foreground">Orveth</span>
+            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Engine</span>
           </div>
         </div>
+
+        <Separator className="bg-border/60" />
 
         {/* Navigation list */}
         <nav className="space-y-1">
@@ -53,24 +58,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
                   isActive
-                    ? "bg-indigo-600 text-white shadow-sm"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    ? "bg-secondary text-foreground font-semibold shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-4 h-4 shrink-0" />
+                <div className="flex items-center gap-2.5">
+                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
                   <span>{item.label}</span>
                 </div>
                 {item.count > 0 && (
-                  <span
-                    className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                      isActive ? "bg-indigo-700 text-white" : "bg-slate-800 text-slate-400"
+                  <Badge
+                    variant={isActive ? "default" : "secondary"}
+                    className={`h-5 px-1.5 text-[11px] font-mono font-medium ${
+                      isActive ? "bg-white text-black hover:bg-white" : ""
                     }`}
                   >
                     {item.count}
-                  </span>
+                  </Badge>
                 )}
               </button>
             );
@@ -79,14 +85,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Settings Footer */}
-      <div className="pt-4 border-t border-slate-800/80">
-        <button
+      <div className="space-y-2 pt-2 border-t border-border/60">
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={onOpenSettings}
-          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 transition-colors"
+          className="w-full justify-start text-xs text-muted-foreground hover:text-foreground px-3 h-9"
         >
-          <Settings className="w-4 h-4 shrink-0" />
+          <Settings className="w-4 h-4 mr-2.5 text-muted-foreground" />
           <span>Preferences</span>
-        </button>
+        </Button>
       </div>
     </aside>
   );

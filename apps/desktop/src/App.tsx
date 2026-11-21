@@ -7,6 +7,7 @@ import { DownloadList } from "./components/DownloadList";
 import { AddDownloadDialog } from "./components/AddDownloadDialog";
 import { JobDetailDrawer } from "./components/JobDetailDrawer";
 import { SettingsModal } from "./components/SettingsModal";
+import { HardDrive, ShieldCheck } from "lucide-react";
 
 export const App: React.FC = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
@@ -18,7 +19,7 @@ export const App: React.FC = () => {
     max_segment_count: 16,
     retry_limit: 5,
     collision_policy: "rename",
-    theme: "system",
+    theme: "dark",
     clipboard_monitoring_enabled: false,
     notification_enabled: true,
   });
@@ -112,7 +113,7 @@ export const App: React.FC = () => {
   }, [jobs, currentTab, searchQuery]);
 
   return (
-    <div className="flex h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex h-screen w-screen bg-black text-foreground overflow-hidden font-sans select-none antialiased">
       <Sidebar
         currentTab={currentTab}
         onTabChange={setCurrentTab}
@@ -120,7 +121,7 @@ export const App: React.FC = () => {
         onOpenSettings={() => setIsSettingsModalOpen(true)}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 bg-black">
         <Toolbar
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
@@ -136,7 +137,7 @@ export const App: React.FC = () => {
           totalSpeedBytesPerSec={0}
         />
 
-        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex min-h-0 bg-black">
           <DownloadList
             jobs={filteredJobs}
             onPause={(id) => api.pauseDownload(id)}
@@ -146,6 +147,7 @@ export const App: React.FC = () => {
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
             onSelectJob={(j) => setSelectedJob(j)}
+            onOpenAddModal={() => setIsAddModalOpen(true)}
           />
 
           {selectedJob && (
@@ -156,6 +158,30 @@ export const App: React.FC = () => {
             />
           )}
         </div>
+
+        {/* Minimalist bottom status bar */}
+        <footer className="h-6 border-t border-border bg-black px-4 flex items-center justify-between text-[11px] font-mono text-muted-foreground shrink-0">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1 text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>Engine Online</span>
+            </span>
+            <span className="text-border">|</span>
+            <span className="flex items-center gap-1">
+              <HardDrive className="w-3 h-3 text-zinc-500" />
+              <span className="truncate max-w-[200px]">{settings.default_destination}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <ShieldCheck className="w-3 h-3 text-zinc-500" />
+              <span>SHA-256 Enabled</span>
+            </span>
+            <span className="text-border">|</span>
+            <span>Orveth v0.1.0</span>
+          </div>
+        </footer>
       </div>
 
       <AddDownloadDialog
