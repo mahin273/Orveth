@@ -237,8 +237,14 @@ async fn inspect_magnet(
 }
 
 pub fn run() {
-    let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
-    let data_dir = PathBuf::from(home).join(".local/share/orveth");
+    let data_dir = if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+        PathBuf::from(local_app).join("Orveth")
+    } else {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .unwrap_or_else(|_| ".".to_string());
+        PathBuf::from(home).join(".local/share/orveth")
+    };
     let db_path = data_dir.join("orveth.db");
     let temp_dir = data_dir.join("temp");
 

@@ -18,19 +18,34 @@ impl MediaExtractor {
                 if p.is_file() {
                     return Some(p);
                 }
+                return None;
             }
         }
 
         // Check standard user directory ~/.local/share/orveth/bin/yt-dlp
-        if let Ok(home) = std::env::var("HOME") {
-            let orveth_bin = PathBuf::from(home).join(".local/share/orveth/bin/yt-dlp");
+        let home = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE"));
+        if let Ok(h) = home {
+            let orveth_bin = PathBuf::from(&h).join(".local/share/orveth/bin/yt-dlp");
             if orveth_bin.is_file() {
                 return Some(orveth_bin);
             }
 
-            let local_bin = PathBuf::from(std::env::var("HOME").unwrap()).join(".local/bin/yt-dlp");
+            let local_bin = PathBuf::from(&h).join(".local/bin/yt-dlp");
             if local_bin.is_file() {
                 return Some(local_bin);
+            }
+        }
+
+        #[cfg(windows)]
+        {
+            if let Ok(local_app) = std::env::var("LOCALAPPDATA") {
+                let orveth_bin = PathBuf::from(local_app)
+                    .join("Orveth")
+                    .join("bin")
+                    .join("yt-dlp.exe");
+                if orveth_bin.is_file() {
+                    return Some(orveth_bin);
+                }
             }
         }
 
@@ -49,6 +64,13 @@ impl MediaExtractor {
                 let candidate = entry.join("yt-dlp");
                 if candidate.is_file() {
                     return Some(candidate);
+                }
+                #[cfg(windows)]
+                {
+                    let candidate_win = entry.join("yt-dlp.exe");
+                    if candidate_win.is_file() {
+                        return Some(candidate_win);
+                    }
                 }
             }
         }
@@ -100,7 +122,19 @@ impl MediaExtractor {
             OrvethError::Storage(format!("Failed to create directory for yt-dlp: {e}"))
         })?;
 
+        #[cfg(windows)]
+        let download_url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp.exe";
+        #[cfg(not(windows))]
         let download_url = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp";
+
+        let binary_name = if cfg!(windows) {
+            "yt-dlp.exe"
+        } else {
+            "yt-dlp"
+        };
+        let final_path = target_dir.join(binary_name);
+        let tmp_path = target_dir.join(format!("{binary_name}.tmp"));
+
         info!(url = %download_url, target = %target_dir.display(), "Downloading standalone yt-dlp binary");
 
         let response =
@@ -119,9 +153,6 @@ impl MediaExtractor {
             .bytes()
             .await
             .map_err(|e| OrvethError::Network(format!("Failed to read yt-dlp payload: {e}")))?;
-
-        let final_path = target_dir.join("yt-dlp");
-        let tmp_path = target_dir.join("yt-dlp.tmp");
 
         tokio::fs::write(&tmp_path, &bytes)
             .await
