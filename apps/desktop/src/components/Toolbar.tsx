@@ -1,69 +1,78 @@
 import React from "react";
-import { Plus, Search, Gauge, X } from "lucide-react";
+import { Plus, Search, Pause, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 
 interface ToolbarProps {
+  breadcrumb: string;
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onOpenAddModal: () => void;
-  bandwidthCap?: number;
-  onOpenSettings: () => void;
+  isAllPaused?: boolean;
+  onTogglePauseAll: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
+  breadcrumb,
   searchQuery,
   onSearchChange,
   onOpenAddModal,
-  bandwidthCap,
-  onOpenSettings,
+  isAllPaused,
+  onTogglePauseAll,
 }) => {
   return (
-    <header className="h-14 border-b border-border bg-black px-6 flex items-center justify-between gap-4 shrink-0 select-none">
-      <div className="flex items-center gap-3 flex-1 max-w-lg">
-        <Button
-          onClick={onOpenAddModal}
-          size="sm"
-          className="bg-white text-black hover:bg-zinc-200 font-medium shadow-none h-8 px-3 gap-1.5 shrink-0"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          <span>New Download</span>
-        </Button>
+    <header className="h-14 border-b border-zinc-900 bg-black px-6 flex items-center justify-between gap-4 shrink-0 select-none">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-zinc-400 font-medium">
+        <span className="text-zinc-500">Downloads</span>
+        <span className="text-zinc-600">/</span>
+        <span className="text-zinc-200">{breadcrumb}</span>
+      </div>
 
-        <div className="relative w-full max-w-xs">
-          <Search className="w-3.5 h-3.5 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <Input
+      {/* Right Action Elements */}
+      <div className="flex items-center gap-2.5">
+        {/* Search input with Ctrl K */}
+        <div className="relative w-64">
+          <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Filter downloads..."
-            className="h-8 pl-8 pr-7 text-xs bg-secondary/30 border-border/80 focus-visible:ring-1 focus-visible:ring-ring placeholder:text-muted-foreground"
+            placeholder="Search downloads"
+            className="w-full h-8 pl-8 pr-16 bg-zinc-950 border border-zinc-800/90 rounded-lg text-xs text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 transition-colors font-sans"
           />
-          {searchQuery && (
-            <button
-              onClick={() => onSearchChange("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          )}
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 px-1.5 py-0.5 rounded bg-zinc-900 border border-zinc-800 text-[10px] font-mono text-zinc-500 pointer-events-none">
+            Ctrl K
+          </div>
         </div>
-      </div>
 
-      <div className="flex items-center gap-2">
+        {/* Pause all button */}
         <Button
           variant="outline"
           size="sm"
-          onClick={onOpenSettings}
-          className="h-8 text-xs font-mono text-muted-foreground hover:text-foreground border-border/80 bg-secondary/20 hover:bg-secondary/40 gap-1.5"
-          title="Configure bandwidth limit in Settings"
+          onClick={onTogglePauseAll}
+          className="h-8 px-3 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-300 border-zinc-800/90 hover:border-zinc-700 gap-1.5 font-normal"
         >
-          <Gauge className="w-3.5 h-3.5 text-zinc-400" />
-          <span>
-            {bandwidthCap
-              ? `Limit: ${(bandwidthCap / 1024 / 1024).toFixed(1)} MB/s`
-              : "Unlimited"}
-          </span>
+          {isAllPaused ? (
+            <>
+              <Play className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Resume all</span>
+            </>
+          ) : (
+            <>
+              <Pause className="w-3.5 h-3.5 text-zinc-400" />
+              <span>Pause all</span>
+            </>
+          )}
+        </Button>
+
+        {/* Add URL button */}
+        <Button
+          onClick={onOpenAddModal}
+          size="sm"
+          className="h-8 px-3.5 text-xs bg-white text-black hover:bg-zinc-200 font-semibold gap-1.5 shadow-sm rounded-lg"
+        >
+          <Plus className="w-3.5 h-3.5 text-black stroke-[2.5]" />
+          <span>Add URL</span>
         </Button>
       </div>
     </header>
