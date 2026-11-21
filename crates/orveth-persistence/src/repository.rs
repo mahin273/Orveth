@@ -192,19 +192,22 @@ impl JobRepository {
         destination: &Path,
         final_url: Option<&str>,
         total_bytes: Option<u64>,
+        segmented: Option<bool>,
     ) -> Result<()> {
         let id_str = id.to_string();
         let dest_str = destination.display().to_string();
         let now_str = Utc::now().to_rfc3339();
         let tot_i64 = total_bytes.map(|t| t as i64);
+        let seg_i64 = segmented.map(|s| if s { 1i64 } else { 0i64 });
 
         sqlx::query(
-            "UPDATE downloads SET file_name = ?, destination = ?, final_url = COALESCE(?, final_url), total_bytes = COALESCE(?, total_bytes), updated_at = ? WHERE id = ?"
+            "UPDATE downloads SET file_name = ?, destination = ?, final_url = COALESCE(?, final_url), total_bytes = COALESCE(?, total_bytes), segmented = COALESCE(?, segmented), updated_at = ? WHERE id = ?"
         )
         .bind(file_name)
         .bind(dest_str)
         .bind(final_url)
         .bind(tot_i64)
+        .bind(seg_i64)
         .bind(now_str)
         .bind(id_str)
         .execute(pool)

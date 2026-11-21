@@ -120,4 +120,40 @@ mod tests {
         assert_eq!(job_after.status, DownloadStatus::Paused);
         assert_eq!(job_after.downloaded_bytes, 800);
     }
+
+    #[tokio::test]
+    async fn test_job_update_metadata() {
+        let tmp = tempdir().unwrap();
+        let db_path = tmp.path().join("metadata_test.db");
+        let pool = init_db_pool(&db_path).await.unwrap();
+
+        let job = DownloadJob::new("https://example.com/download", tmp.path(), None);
+        let id = job.id;
+        assert!(!job.segmented);
+
+        JobRepository::insert(&pool, &job).await.unwrap();
+
+        let new_dest = tmp.path().join("ubuntu-26.04.iso");
+        JobRepository::update_metadata(
+            &pool,
+            id,
+            "ubuntu-26.04.iso",
+            &new_dest,
+            Some("https://releases.ubuntu.com/ubuntu-26.04.iso"),
+            Some(6_000_000_000),
+            Some(true),
+        )
+        .await
+        .unwrap();
+
+        let updated = JobRepository::get(&pool, id).await.unwrap().unwrap();
+        assert_eq!(updated.file_name, "ubuntu-26.04.iso");
+        assert_eq!(updated.destination, new_dest);
+        assert_eq!(
+            updated.final_url.as_deref(),
+            Some("https://releases.ubuntu.com/ubuntu-26.04.iso")
+        );
+        assert_eq!(updated.total_bytes, Some(6_000_000_000));
+        assert!(updated.segmented);
+    }
 }

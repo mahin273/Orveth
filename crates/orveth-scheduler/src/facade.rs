@@ -39,7 +39,7 @@ impl OrvethEngine {
         let settings = SettingsRepository::get_settings(&pool).await?;
         let limiter = BandwidthLimiter::new(settings.global_bandwidth_limit_bytes_per_sec);
 
-        let (event_sender, _) = broadcast::channel(256);
+        let (event_sender, _) = broadcast::channel(2048);
         let queue = Arc::new(QueueManager::new(
             pool.clone(),
             storage.clone(),

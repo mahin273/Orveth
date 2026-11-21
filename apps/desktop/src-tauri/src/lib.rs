@@ -165,8 +165,18 @@ pub fn run() {
                 let mut rx = engine.subscribe();
                 let emitter_handle = handle.clone();
                 tokio::spawn(async move {
-                    while let Ok(event) = rx.recv().await {
-                        let _ = emitter_handle.emit("engine_event", event);
+                    loop {
+                        match rx.recv().await {
+                            Ok(event) => {
+                                let _ = emitter_handle.emit("engine_event", event);
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                                eprintln!("Event bridge lagged, skipped {skipped} messages");
+                            }
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                break;
+                            }
+                        }
                     }
                 });
 

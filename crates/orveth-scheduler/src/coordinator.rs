@@ -82,35 +82,33 @@ impl DownloadCoordinator {
         let is_generic = generic_names.contains(&job.file_name.to_ascii_lowercase().as_str())
             || !job.file_name.contains('.');
 
-        let mut file_name_changed = false;
         if let Some(ref new_name) = caps.suggested_filename {
             if new_name != &job.file_name && (is_generic || new_name.contains('.')) {
                 let parent = job.destination.parent().unwrap_or_else(|| Path::new("."));
                 let new_dest = parent.join(new_name);
                 job.file_name = new_name.clone();
                 job.destination = new_dest;
-                file_name_changed = true;
-            }
-        }
-
-        if file_name_changed || caps.final_url != job.url || caps.content_length.is_some() {
-            let _ = JobRepository::update_metadata(
-                &ctx.pool,
-                ctx.job_id,
-                &job.file_name,
-                &job.destination,
-                Some(&caps.final_url),
-                caps.content_length,
-            )
-            .await;
-            job.final_url = Some(caps.final_url.clone());
-            if let Some(len) = caps.content_length {
-                job.total_bytes = Some(len);
             }
         }
 
         let is_segmented =
             caps.range_supported && caps.content_length.map(|l| l > 256 * 1024).unwrap_or(false);
+        job.segmented = is_segmented;
+
+        let _ = JobRepository::update_metadata(
+            &ctx.pool,
+            ctx.job_id,
+            &job.file_name,
+            &job.destination,
+            Some(&caps.final_url),
+            caps.content_length,
+            Some(is_segmented),
+        )
+        .await;
+        job.final_url = Some(caps.final_url.clone());
+        if let Some(len) = caps.content_length {
+            job.total_bytes = Some(len);
+        }
 
         // 3. Transition to Downloading
         let _ =
@@ -349,12 +347,14 @@ impl DownloadCoordinator {
                 let seg_received_cl = seg_received.clone();
                 let seg_event_sender = event_sender.clone();
                 let mut bytes_since_last_seg_event = 0u64;
+                let mut bytes_since_last_db_flush = 0u64;
+                let pool_cl = pool.clone();
 
                 let res = SegmentWorker::download(&client, &url, &mut seg, cancel, move |delta| {
                     dl_counter.fetch_add(delta, Ordering::Relaxed);
                     let current = seg_received_cl.fetch_add(delta, Ordering::Relaxed) + delta;
                     bytes_since_last_seg_event += delta;
-                    if bytes_since_last_seg_event >= 128 * 1024 {
+                    if bytes_since_last_seg_event >= 256 * 1024 {
                         bytes_since_last_seg_event = 0;
                         let _ = seg_event_sender.send(EngineEvent::SegmentStateChanged {
                             download_id: job_id,
@@ -364,24 +364,58 @@ impl DownloadCoordinator {
                             expected_bytes: seg_expected,
                         });
                     }
+                    bytes_since_last_db_flush += delta;
+                    if bytes_since_last_db_flush >= 1024 * 1024 {
+                        bytes_since_last_db_flush = 0;
+                        let p = pool_cl.clone();
+                        tokio::spawn(async move {
+                            let _ = SegmentRepository::update_progress(
+                                &p,
+                                seg_id,
+                                current,
+                                SegmentStatus::Downloading,
+                            )
+                            .await;
+                        });
+                    }
                 })
                 .await;
 
-                if res.is_ok() {
-                    let _ = SegmentRepository::update_progress(
-                        &pool,
-                        seg.id,
-                        seg.received_bytes,
-                        SegmentStatus::Completed,
-                    )
-                    .await;
-                    let _ = event_sender.send(EngineEvent::SegmentStateChanged {
-                        download_id: job_id,
-                        segment_id: seg_id,
-                        status: SegmentStatus::Completed,
-                        received_bytes: seg.received_bytes,
-                        expected_bytes: seg_expected,
-                    });
+                match res {
+                    Ok(()) => {
+                        let _ = SegmentRepository::update_progress(
+                            &pool,
+                            seg.id,
+                            seg.received_bytes,
+                            SegmentStatus::Completed,
+                        )
+                        .await;
+                        let _ = event_sender.send(EngineEvent::SegmentStateChanged {
+                            download_id: job_id,
+                            segment_id: seg_id,
+                            status: SegmentStatus::Completed,
+                            received_bytes: seg.received_bytes,
+                            expected_bytes: seg_expected,
+                        });
+                    }
+                    Err(OrvethError::Canceled) => {
+                        let _ = SegmentRepository::update_progress(
+                            &pool,
+                            seg.id,
+                            seg.received_bytes,
+                            SegmentStatus::Paused,
+                        )
+                        .await;
+                    }
+                    Err(ref _e) => {
+                        let _ = SegmentRepository::update_progress(
+                            &pool,
+                            seg.id,
+                            seg.received_bytes,
+                            SegmentStatus::Failed,
+                        )
+                        .await;
+                    }
                 }
 
                 res.map(|_| seg)
