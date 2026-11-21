@@ -934,7 +934,7 @@ checksum = "9f7c3e4beb33f85d45ae3e3a1792185706c8e16d043238c593331cc7cd313b50"
 
 [[package]]
 name = "orveth-core"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chrono",
  "serde",
@@ -946,15 +946,17 @@ dependencies = [
 
 [[package]]
 name = "orveth-download"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chrono",
  "fastrand",
  "futures-util",
+ "hex",
  "orveth-core",
  "reqwest",
  "serde",
  "serde_json",
+ "sha1",
  "tempfile",
  "thiserror",
  "tokio",
@@ -965,7 +967,7 @@ dependencies = [
 
 [[package]]
 name = "orveth-integrity"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "hex",
  "orveth-core",
@@ -977,7 +979,7 @@ dependencies = [
 
 [[package]]
 name = "orveth-persistence"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chrono",
  "orveth-core",
@@ -994,7 +996,7 @@ dependencies = [
 
 [[package]]
 name = "orveth-scheduler"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chrono",
  "orveth-core",
@@ -1014,7 +1016,7 @@ dependencies = [
 
 [[package]]
 name = "orveth-storage"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "chrono",
  "orveth-core",

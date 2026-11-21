@@ -5,10 +5,12 @@ use orveth_core::error::{OrvethError, Result};
 use orveth_core::event::EngineEvent;
 use orveth_core::model::{
     BridgeStatus, DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, Segment,
-    YtDlpStatus,
+    TorrentMetadata, YtDlpStatus,
 };
 use orveth_core::state::{DownloadStatus, VerificationStatus};
-use orveth_download::MediaExtractor;
+use orveth_download::{
+    AnnounceParams, MediaExtractor, TorrentParser, TrackerClient, TrackerResponse,
+};
 use orveth_integrity::FileHasher;
 use orveth_persistence::{
     init_db_pool, DbPool, JobRepository, SegmentRepository, SettingsRepository, StateReconciler,
@@ -332,5 +334,33 @@ impl OrvethEngine {
             .into_iter()
             .map(|p| p.to_string_lossy().to_string())
             .collect())
+    }
+
+    pub fn inspect_torrent(&self, bytes: &[u8]) -> Result<TorrentMetadata> {
+        TorrentParser::parse_torrent(bytes)
+    }
+
+    pub fn inspect_magnet(&self, uri: &str) -> Result<TorrentMetadata> {
+        TorrentParser::parse_magnet(uri)
+    }
+
+    pub async fn query_torrent_tracker(
+        &self,
+        tracker_url: &str,
+        info_hash: &str,
+    ) -> Result<TrackerResponse> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let client = TrackerClient::new(settings.proxy_url.as_deref());
+        let peer_id = b"-OV0240-000000000000";
+        let params = AnnounceParams {
+            tracker_url,
+            info_hash_hex: info_hash,
+            peer_id,
+            port: 6881,
+            uploaded: 0,
+            downloaded: 0,
+            left: 0,
+        };
+        client.announce_http(&params).await
     }
 }

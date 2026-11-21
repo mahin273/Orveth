@@ -1,5 +1,6 @@
 use orveth_core::model::{
-    BridgeStatus, DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, YtDlpStatus,
+    BridgeStatus, DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult,
+    TorrentMetadata, YtDlpStatus,
 };
 use orveth_scheduler::OrvethEngine;
 use std::path::{Path, PathBuf};
@@ -219,6 +220,22 @@ async fn install_native_manifests(
     state.engine.install_native_manifests().await.map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn inspect_torrent(
+    state: State<'_, Arc<AppState>>,
+    bytes: Vec<u8>,
+) -> Result<TorrentMetadata, String> {
+    state.engine.inspect_torrent(&bytes).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn inspect_magnet(
+    state: State<'_, Arc<AppState>>,
+    uri: String,
+) -> Result<TorrentMetadata, String> {
+    state.engine.inspect_magnet(&uri).map_err(|e| e.to_string())
+}
+
 pub fn run() {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let data_dir = PathBuf::from(home).join(".local/share/orveth");
@@ -281,6 +298,8 @@ pub fn run() {
             resolve_media_stream,
             get_bridge_status,
             install_native_manifests,
+            inspect_torrent,
+            inspect_magnet,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
