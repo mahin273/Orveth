@@ -70,6 +70,35 @@ export interface EngineSettings {
   clipboard_monitoring_enabled: boolean;
   notification_enabled: boolean;
   proxy_url?: string;
+  ytdlp_path?: string;
+}
+
+export interface YtDlpStatus {
+  available: boolean;
+  path?: string;
+  version?: string;
+}
+
+export interface MediaFormatInfo {
+  format_id: string;
+  ext: string;
+  resolution?: string;
+  note?: string;
+  filesize_approx?: number;
+  vcodec?: string;
+  acodec?: string;
+  is_video: boolean;
+  is_audio: boolean;
+  direct_url?: string;
+}
+
+export interface MediaInspectionResult {
+  url: string;
+  title: string;
+  uploader?: string;
+  duration_seconds?: number;
+  thumbnail_url?: string;
+  formats: MediaFormatInfo[];
 }
 
 export interface DownloadFilter {
@@ -154,6 +183,22 @@ export const api = {
 
   async revealFile(id: string): Promise<void> {
     return invoke("reveal_file", { id });
+  },
+
+  async checkYtDlpStatus(): Promise<YtDlpStatus> {
+    return invoke("check_ytdlp_status");
+  },
+
+  async installYtDlp(): Promise<YtDlpStatus> {
+    return invoke("install_ytdlp");
+  },
+
+  async inspectMedia(url: string): Promise<MediaInspectionResult> {
+    return invoke("inspect_media", { url });
+  },
+
+  async resolveMediaStream(url: string, formatId: string): Promise<string> {
+    return invoke("resolve_media_stream", { url, formatId });
   },
 
   async onEngineEvent(cb: (event: any) => void): Promise<UnlistenFn> {

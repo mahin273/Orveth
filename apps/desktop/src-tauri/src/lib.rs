@@ -1,4 +1,6 @@
-use orveth_core::model::{DownloadFilter, DownloadJob, EngineSettings};
+use orveth_core::model::{
+    DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, YtDlpStatus,
+};
 use orveth_scheduler::OrvethEngine;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -174,6 +176,37 @@ async fn reveal_file(state: State<'_, Arc<AppState>>, id: String) -> Result<(), 
     Ok(())
 }
 
+#[tauri::command]
+async fn check_ytdlp_status(state: State<'_, Arc<AppState>>) -> Result<YtDlpStatus, String> {
+    state.engine.check_ytdlp_status().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_ytdlp(state: State<'_, Arc<AppState>>) -> Result<YtDlpStatus, String> {
+    state.engine.install_ytdlp().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn inspect_media(
+    state: State<'_, Arc<AppState>>,
+    url: String,
+) -> Result<MediaInspectionResult, String> {
+    state.engine.inspect_media(&url).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn resolve_media_stream(
+    state: State<'_, Arc<AppState>>,
+    url: String,
+    format_id: String,
+) -> Result<String, String> {
+    state
+        .engine
+        .resolve_media_stream(&url, &format_id)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 pub fn run() {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let data_dir = PathBuf::from(home).join(".local/share/orveth");
@@ -230,6 +263,10 @@ pub fn run() {
             set_global_bandwidth_limit,
             open_file,
             reveal_file,
+            check_ytdlp_status,
+            install_ytdlp,
+            inspect_media,
+            resolve_media_stream,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

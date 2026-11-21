@@ -117,4 +117,16 @@ mod tests {
         assert_eq!(list[0].id, added[2].id);
         assert_eq!(list[0].priority, 10);
     }
+
+    #[tokio::test]
+    async fn test_engine_media_ytdlp_status_check() {
+        let tmp = tempdir().unwrap();
+        let db_path = tmp.path().join("media_test.db");
+        let temp_dir = tmp.path().join("temp");
+
+        let engine = OrvethEngine::init(&db_path, &temp_dir).await.unwrap();
+        let status = engine.check_ytdlp_status().await.unwrap();
+        // Even if not installed on host, it gracefully returns YtDlpStatus without panicking
+        assert!(!status.available || status.path.is_some());
+    }
 }

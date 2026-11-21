@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { EngineSettings } from "../api";
 import {
   Dialog,
@@ -12,7 +12,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Globe, Shield, HardDrive, Cpu } from "lucide-react";
+import { Globe, Shield, HardDrive, Cpu, Film, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { api, YtDlpStatus } from "@/api";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -29,6 +30,29 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [settings, setSettings] = useState<EngineSettings>(initialSettings);
   const [saving, setSaving] = useState(false);
+  const [ytdlpStatus, setYtdlpStatus] = useState<YtDlpStatus | null>(null);
+  const [installingYtDlp, setInstallingYtDlp] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.checkYtDlpStatus()
+        .then(setYtdlpStatus)
+        .catch(() => setYtdlpStatus({ available: false }));
+    }
+  }, [isOpen]);
+
+  const handleInstallYtDlp = async () => {
+    setInstallingYtDlp(true);
+    try {
+      const res = await api.installYtDlp();
+      setYtdlpStatus(res);
+      if (res.path) {
+        setSettings({ ...settings, ytdlp_path: res.path });
+      }
+    } finally {
+      setInstallingYtDlp(false);
+    }
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -275,6 +299,63 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 <p className="text-[10px] text-muted-foreground pt-1">
                   Supports HTTP, HTTPS, and SOCKS5 (Tor). All outgoing requests and parallel segment workers will route through this proxy.
+                </p>
+              </div>
+
+              {/* Media Extractor Engine Configuration */}
+              <div className="space-y-2 pt-2 border-t border-border/60">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="ytdlp-path" className="text-xs text-foreground font-medium flex items-center gap-1.5">
+                    <Film className="w-3.5 h-3.5 text-purple-400" />
+                    <span>Media Extractor Engine (yt-dlp)</span>
+                  </Label>
+                  {ytdlpStatus?.available ? (
+                    <span className="text-[10px] text-emerald-400 font-mono flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>{ytdlpStatus.version ? `v${ytdlpStatus.version}` : "Active"}</span>
+                    </span>
+                  ) : (
+                    <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      <span>Not detected</span>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <Input
+                    id="ytdlp-path"
+                    type="text"
+                    placeholder="Auto-detected (~/.local/share/orveth/bin/yt-dlp or PATH)"
+                    value={settings.ytdlp_path || ""}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setSettings({
+                        ...settings,
+                        ytdlp_path: val.length > 0 ? val : undefined,
+                      });
+                    }}
+                    className="bg-secondary/40 border-border/80 text-xs font-mono flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={installingYtDlp}
+                    onClick={handleInstallYtDlp}
+                    className="text-xs bg-purple-600 hover:bg-purple-500 text-white shrink-0"
+                  >
+                    {installingYtDlp ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        <span>Installing...</span>
+                      </>
+                    ) : (
+                      <span>{ytdlpStatus?.available ? "Reinstall" : "Install Engine"}</span>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  Used by Orveth to probe video/audio qualities and extract direct streaming links.
                 </p>
               </div>
             </TabsContent>

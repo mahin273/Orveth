@@ -1,10 +1,12 @@
 pub mod capability;
+pub mod media;
 pub mod retry;
 pub mod segment_planner;
 pub mod segment_worker;
 pub mod single_stream;
 
 pub use capability::{CapabilityDetector, ServerCapabilities};
+pub use media::MediaExtractor;
 pub use retry::RetryPolicy;
 pub use segment_planner::SegmentPlanner;
 pub use segment_worker::SegmentWorker;

@@ -2,8 +2,11 @@ use crate::limiter::BandwidthLimiter;
 use crate::queue::QueueManager;
 use orveth_core::error::{OrvethError, Result};
 use orveth_core::event::EngineEvent;
-use orveth_core::model::{DownloadFilter, DownloadJob, EngineSettings, Segment};
+use orveth_core::model::{
+    DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, Segment, YtDlpStatus,
+};
 use orveth_core::state::{DownloadStatus, VerificationStatus};
+use orveth_download::MediaExtractor;
 use orveth_integrity::FileHasher;
 use orveth_persistence::{
     init_db_pool, DbPool, JobRepository, SegmentRepository, SettingsRepository, StateReconciler,
@@ -209,5 +212,50 @@ impl OrvethEngine {
             });
 
         Ok(outcome.status)
+    }
+
+    pub async fn check_ytdlp_status(&self) -> Result<YtDlpStatus> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        Ok(MediaExtractor::check_status(settings.ytdlp_path.as_deref()).await)
+    }
+
+    pub async fn install_ytdlp(&self) -> Result<YtDlpStatus> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let client = QueueManager::build_client(settings.proxy_url.as_deref());
+        let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
+        let target_dir = PathBuf::from(home).join(".local/share/orveth/bin");
+
+        let status = MediaExtractor::install_ytdlp(&client, &target_dir).await?;
+        if let Some(ref path) = status.path {
+            let mut updated_settings = settings;
+            updated_settings.ytdlp_path = Some(path.clone());
+            SettingsRepository::save_settings(&self.pool, &updated_settings).await?;
+        }
+        Ok(status)
+    }
+
+    pub async fn inspect_media(&self, url: &str) -> Result<MediaInspectionResult> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let binary =
+            MediaExtractor::resolve_binary(settings.ytdlp_path.as_deref()).ok_or_else(|| {
+                OrvethError::Media(
+                    "yt-dlp engine is not installed or not found in PATH".to_string(),
+                )
+            })?;
+
+        MediaExtractor::inspect_media(&binary, url, settings.proxy_url.as_deref()).await
+    }
+
+    pub async fn resolve_media_stream(&self, url: &str, format_id: &str) -> Result<String> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let binary =
+            MediaExtractor::resolve_binary(settings.ytdlp_path.as_deref()).ok_or_else(|| {
+                OrvethError::Media(
+                    "yt-dlp engine is not installed or not found in PATH".to_string(),
+                )
+            })?;
+
+        MediaExtractor::resolve_stream_url(&binary, url, format_id, settings.proxy_url.as_deref())
+            .await
     }
 }
