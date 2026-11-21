@@ -1,0 +1,64 @@
+/* Orveth IDM-Grade Floating Video Downloader Bar */
+
+.orveth-video-downloader-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2147483647;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(9, 9, 11, 0.88);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(168, 85, 247, 0.4);
+  color: #f4f4f5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 6px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 10px rgba(168, 85, 247, 0.2);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  opacity: 0.85;
+  user-select: none;
+}
+
+.orveth-video-downloader-badge:hover {
+  opacity: 1;
+  background: rgba(18, 18, 23, 0.98);
+  border-color: rgba(168, 85, 247, 0.8);
+  transform: translateY(-1px) scale(1.03);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.8), 0 0 16px rgba(168, 85, 247, 0.4);
+}
+
+.orveth-badge-icon {
+  width: 14px;
+  height: 14px;
+  color: #c084fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orveth-badge-text {
+  letter-spacing: -0.01em;
+  color: #fafafa;
+}
+
+.orveth-badge-tag {
+  font-size: 9px;
+  font-family: monospace;
+  background: rgba(168, 85, 247, 0.25);
+  color: #d8b4fe;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid rgba(168, 85, 247, 0.3);
+  text-transform: uppercase;
+}
+
+.orveth-badge-success {
+  border-color: rgba(52, 211, 153, 0.8) !important;
+  color: #34d399 !important;
+}
