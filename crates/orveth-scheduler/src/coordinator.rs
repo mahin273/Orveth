@@ -10,7 +10,7 @@ use orveth_persistence::{DbPool, JobRepository, SegmentRepository};
 use orveth_storage::StorageManager;
 use reqwest::Client;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
 use tracing::{error, info};
@@ -122,11 +122,100 @@ impl DownloadCoordinator {
             timestamp: Utc::now(),
         });
 
+        let total_downloaded = Arc::new(AtomicU64::new(job.downloaded_bytes));
+        let progress_job_id = ctx.job_id;
+        let progress_sender = ctx.event_sender.clone();
+        let progress_pool = ctx.pool.clone();
+        let progress_cancel = ctx.cancel_token.clone();
+        let progress_counter = total_downloaded.clone();
+        let total_expected = caps.content_length;
+
+        let reporter_handle = tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+            interval.tick().await;
+
+            let mut last_bytes = progress_counter.load(Ordering::Relaxed);
+            let mut last_tick = tokio::time::Instant::now();
+            let mut db_tick = 0u32;
+
+            loop {
+                interval.tick().await;
+                if progress_cancel.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                let now = tokio::time::Instant::now();
+                let current_bytes = progress_counter.load(Ordering::Relaxed);
+                let elapsed = now.duration_since(last_tick).as_secs_f64();
+                let delta = current_bytes.saturating_sub(last_bytes);
+                let bytes_per_sec = if elapsed > 0.0 {
+                    (delta as f64 / elapsed) as u64
+                } else {
+                    0
+                };
+
+                let eta_seconds = if bytes_per_sec > 0 {
+                    total_expected.map(|total| {
+                        let remaining = total.saturating_sub(current_bytes);
+                        remaining / bytes_per_sec
+                    })
+                } else {
+                    None
+                };
+
+                let _ = progress_sender.send(EngineEvent::DownloadProgress {
+                    download_id: progress_job_id,
+                    downloaded_bytes: current_bytes,
+                    total_bytes: total_expected,
+                    progress_ratio: total_expected.map(|tot| {
+                        if tot > 0 {
+                            current_bytes as f64 / tot as f64
+                        } else {
+                            0.0
+                        }
+                    }),
+                });
+
+                let _ = progress_sender.send(EngineEvent::DownloadSpeed {
+                    download_id: progress_job_id,
+                    bytes_per_sec,
+                    eta_seconds,
+                });
+
+                last_bytes = current_bytes;
+                last_tick = now;
+                db_tick += 1;
+
+                if db_tick.is_multiple_of(2) {
+                    let _ = JobRepository::update_progress(
+                        &progress_pool,
+                        progress_job_id,
+                        current_bytes,
+                        total_expected,
+                    )
+                    .await;
+                }
+            }
+        });
+
         let download_result = if is_segmented {
-            Self::execute_segmented(&ctx, &job, caps.content_length.unwrap()).await
+            Self::execute_segmented(
+                &ctx,
+                &job,
+                caps.content_length.unwrap(),
+                total_downloaded.clone(),
+            )
+            .await
         } else {
-            Self::execute_single_stream(&ctx, &job).await
+            Self::execute_single_stream(&ctx, &job, total_downloaded.clone()).await
         };
+
+        reporter_handle.abort();
+
+        let final_dl = total_downloaded.load(Ordering::Relaxed);
+        let _ =
+            JobRepository::update_progress(&ctx.pool, ctx.job_id, final_dl, caps.content_length)
+                .await;
 
         match download_result {
             Ok(assembled_file) => {
@@ -186,6 +275,11 @@ impl DownloadCoordinator {
             }
             Err(OrvethError::Canceled) => {
                 info!(job_id = %ctx.job_id, "Download paused/canceled by request");
+                let _ = ctx.event_sender.send(EngineEvent::DownloadSpeed {
+                    download_id: ctx.job_id,
+                    bytes_per_sec: 0,
+                    eta_seconds: None,
+                });
                 let _ = JobRepository::update_status(&ctx.pool, ctx.job_id, DownloadStatus::Paused)
                     .await;
                 let _ = ctx.event_sender.send(EngineEvent::DownloadStateChanged {
@@ -197,6 +291,11 @@ impl DownloadCoordinator {
                 Ok(())
             }
             Err(e) => {
+                let _ = ctx.event_sender.send(EngineEvent::DownloadSpeed {
+                    download_id: ctx.job_id,
+                    bytes_per_sec: 0,
+                    eta_seconds: None,
+                });
                 Self::handle_job_error(&ctx.pool, &ctx.event_sender, ctx.job_id, &e).await;
                 Err(e)
             }
@@ -207,6 +306,7 @@ impl DownloadCoordinator {
         ctx: &JobExecutionContext,
         job: &DownloadJob,
         total_length: u64,
+        total_downloaded: Arc<AtomicU64>,
     ) -> Result<std::path::PathBuf> {
         let temp_dir = ctx.storage.temp_dir_for_job(job.id);
         let mut segments = SegmentRepository::get_for_job(&ctx.pool, job.id).await?;
@@ -222,29 +322,48 @@ impl DownloadCoordinator {
             segments = planned;
         }
 
+        // Initialize total_downloaded counter with existing bytes from segments
+        let existing_sum: u64 = segments.iter().map(|s| s.received_bytes).sum();
+        total_downloaded.store(existing_sum, Ordering::Relaxed);
+
         let mut set = tokio::task::JoinSet::new();
 
         for mut seg in segments.clone() {
             let client = ctx.client.clone();
-            let url = job.url.clone();
+            let url = job.final_url.as_deref().unwrap_or(&job.url).to_string();
             let cancel = ctx.cancel_token.clone();
             let _limiter = ctx.limiter.clone();
             let event_sender = ctx.event_sender.clone();
             let job_id = job.id;
             let pool = ctx.pool.clone();
+            let dl_counter = total_downloaded.clone();
 
             set.spawn(async move {
                 if seg.is_completed() {
                     return Ok(seg);
                 }
 
-                let res = SegmentWorker::download(&client, &url, &mut seg, cancel, |delta| {
-                    let _ = event_sender.send(EngineEvent::DownloadProgress {
-                        download_id: job_id,
-                        downloaded_bytes: delta,
-                        total_bytes: Some(total_length),
-                        progress_ratio: None,
-                    });
+                let seg_id = seg.id;
+                let seg_expected = seg.expected_length();
+                let seg_received = Arc::new(AtomicU64::new(seg.received_bytes));
+                let seg_received_cl = seg_received.clone();
+                let seg_event_sender = event_sender.clone();
+                let mut bytes_since_last_seg_event = 0u64;
+
+                let res = SegmentWorker::download(&client, &url, &mut seg, cancel, move |delta| {
+                    dl_counter.fetch_add(delta, Ordering::Relaxed);
+                    let current = seg_received_cl.fetch_add(delta, Ordering::Relaxed) + delta;
+                    bytes_since_last_seg_event += delta;
+                    if bytes_since_last_seg_event >= 128 * 1024 {
+                        bytes_since_last_seg_event = 0;
+                        let _ = seg_event_sender.send(EngineEvent::SegmentStateChanged {
+                            download_id: job_id,
+                            segment_id: seg_id,
+                            status: SegmentStatus::Downloading,
+                            received_bytes: current,
+                            expected_bytes: seg_expected,
+                        });
+                    }
                 })
                 .await;
 
@@ -256,6 +375,13 @@ impl DownloadCoordinator {
                         SegmentStatus::Completed,
                     )
                     .await;
+                    let _ = event_sender.send(EngineEvent::SegmentStateChanged {
+                        download_id: job_id,
+                        segment_id: seg_id,
+                        status: SegmentStatus::Completed,
+                        received_bytes: seg.received_bytes,
+                        expected_bytes: seg_expected,
+                    });
                 }
 
                 res.map(|_| seg)
@@ -282,23 +408,19 @@ impl DownloadCoordinator {
     async fn execute_single_stream(
         ctx: &JobExecutionContext,
         job: &DownloadJob,
+        total_downloaded: Arc<AtomicU64>,
     ) -> Result<std::path::PathBuf> {
         let temp_file = ctx.storage.single_stream_temp_path(job.id, &job.file_name);
-        let event_sender = ctx.event_sender.clone();
-        let job_id = job.id;
+        let dl_counter = total_downloaded.clone();
+        let target_url = job.final_url.as_deref().unwrap_or(&job.url);
 
         SingleStreamWorker::download(
             &ctx.client,
-            &job.url,
+            target_url,
             &temp_file,
             ctx.cancel_token.clone(),
-            |delta, total| {
-                let _ = event_sender.send(EngineEvent::DownloadProgress {
-                    download_id: job_id,
-                    downloaded_bytes: delta,
-                    total_bytes: total,
-                    progress_ratio: None,
-                });
+            move |delta, _| {
+                dl_counter.fetch_add(delta, Ordering::Relaxed);
             },
         )
         .await?;

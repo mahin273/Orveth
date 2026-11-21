@@ -48,10 +48,8 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
 
   // Generate an SVG path for the speed mini-sparkline inside Card 2
   const renderSparkline = () => {
-    const points = speedHistory.length > 0
-      ? speedHistory
-      : [2, 4, 3, 6, 8, 5, 9, 7, 11, 8, 10, 11.5];
-    const max = Math.max(...points, 1);
+    const points = speedHistory.length >= 2 ? speedHistory : [0, 0];
+    const max = Math.max(...points, 0.1);
     const width = 80;
     const height = 24;
     const step = width / (points.length - 1);
@@ -59,7 +57,7 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
     const pathData = points
       .map((val, idx) => {
         const x = idx * step;
-        const y = height - (val / max) * (height - 4) - 2;
+        const y = max > 0 ? height - (val / max) * (height - 4) - 2 : height - 2;
         return `${idx === 0 ? "M" : "L"} ${x} ${y}`;
       })
       .join(" ");

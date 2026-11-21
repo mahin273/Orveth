@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { DownloadJob } from "../api";
+import React, { useEffect, useState } from "react";
+import { DownloadJob, Segment, api } from "../api";
 import { X, Pause, Play, FolderOpen, Copy, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -26,6 +26,42 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
   speedHistory = [],
 }) => {
   const [copied, setCopied] = useState(false);
+  const [segments, setSegments] = useState<Segment[]>([]);
+
+  useEffect(() => {
+    if (!job) {
+      setSegments([]);
+      return;
+    }
+
+    let unlisten: (() => void) | undefined;
+    api.getSegments(job.id).then(setSegments).catch(() => setSegments([]));
+
+    api.onEngineEvent((event: any) => {
+      if (
+        event.event_type === "segment_state_changed" &&
+        event.payload?.download_id === job.id
+      ) {
+        setSegments((prev) =>
+          prev.map((s) =>
+            s.id === event.payload.segment_id
+              ? {
+                  ...s,
+                  status: event.payload.status,
+                  received_bytes: event.payload.received_bytes,
+                }
+              : s
+          )
+        );
+      }
+    }).then((unsub) => {
+      unlisten = unsub;
+    }).catch(() => {});
+
+    return () => {
+      if (unlisten) unlisten();
+    };
+  }, [job?.id]);
 
   if (!job) return null;
 
@@ -63,51 +99,22 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
     ? Math.min(100, Math.round((job.downloaded_bytes / job.total_bytes) * 100))
     : 0;
 
-  const segmentCount = job.segmented ? 8 : 1;
-
-  // Calculate discrete segments for breakdown
-  const segments = Array.from({ length: segmentCount }).map((_, i) => {
-    const total = job.total_bytes || 1024 * 1024 * 100;
-    const chunkSize = Math.floor(total / segmentCount);
-    const startByte = i * chunkSize;
-    const endByte = i === segmentCount - 1 ? total : (i + 1) * chunkSize;
-
-    // Estimate progress per segment
-    let pct = 0;
-    if (job.status === "completed") {
-      pct = 100;
-    } else {
-      const segStartPct = (i / segmentCount) * 100;
-      const segEndPct = ((i + 1) / segmentCount) * 100;
-      if (progressPercent >= segEndPct) {
-        pct = 100;
-      } else if (progressPercent <= segStartPct) {
-        pct = 0;
-      } else {
-        pct = Math.round(((progressPercent - segStartPct) / (segEndPct - segStartPct)) * 100);
-      }
-    }
-
-    return {
-      index: i + 1,
-      range: `${formatBytes(startByte)} - ${formatBytes(endByte)}`,
-      percent: pct,
-    };
-  });
+  const peakSpeedMB = Math.max(
+    ...speedHistory,
+    +(speedBytesPerSec / (1024 * 1024)).toFixed(1)
+  );
 
   // Render SVG Speed Graph with Bezier curve
   const renderSpeedChart = () => {
-    const points = speedHistory.length > 5
-      ? speedHistory
-      : [3.2, 4.5, 4.1, 5.8, 6.2, 5.4, 6.8, 6.1, 7.1, 6.5, 6.4];
-    const max = Math.max(...points, 8);
+    const points = speedHistory.length >= 2 ? speedHistory : [0, 0];
+    const max = Math.max(...points, 0.1);
     const width = 310;
     const height = 60;
     const step = width / (points.length - 1);
 
     const coords = points.map((val, idx) => ({
       x: idx * step,
-      y: height - (val / max) * (height - 12) - 6,
+      y: max > 0 ? height - (val / max) * (height - 12) - 6 : height - 6,
     }));
 
     // Build smooth cubic bezier curve
@@ -267,7 +274,9 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-zinc-200">Speed</span>
             <span className="text-[11px] text-zinc-500 font-mono">
-              Last 60 seconds, peak 7.1 MB/s
+              {peakSpeedMB > 0
+                ? `Last 30 seconds, peak ${peakSpeedMB.toFixed(1)} MB/s`
+                : "No transfer active"}
             </span>
           </div>
           {renderSpeedChart()}
@@ -278,26 +287,71 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-zinc-200">Segments</span>
             <span className="text-[11px] text-zinc-500 font-mono">
-              {job.status === "completed" ? "8 of 8 completed" : "8 of 8 active"}
+              {segments.length > 0
+                ? job.status === "completed"
+                  ? `${segments.length} of ${segments.length} completed`
+                  : `${segments.filter((s) => s.status === "completed").length} of ${segments.length} completed`
+                : job.segmented
+                ? "Allocating segments..."
+                : "Single stream"}
             </span>
           </div>
 
           <div className="space-y-1.5">
-            {segments.map((seg) => (
-              <div key={seg.index} className="flex items-center gap-2 text-[10px] font-mono">
-                <span className="w-3 text-zinc-500 text-right">{seg.index}</span>
-                <span className="w-24 text-zinc-400 truncate">{seg.range}</span>
+            {segments.length > 0 ? (
+              segments.map((seg, i) => {
+                const expected = seg.end_byte - seg.start_byte + 1;
+                const pct =
+                  expected > 0
+                    ? Math.min(
+                        100,
+                        Math.round((seg.received_bytes / expected) * 100)
+                      )
+                    : 0;
+                return (
+                  <div
+                    key={seg.id}
+                    className="flex items-center gap-2 text-[10px] font-mono"
+                  >
+                    <span className="w-3 text-zinc-500 text-right">{i + 1}</span>
+                    <span className="w-24 text-zinc-400 truncate">
+                      {formatBytes(seg.start_byte)} - {formatBytes(seg.end_byte)}
+                    </span>
+                    <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          seg.status === "completed" || pct >= 100
+                            ? "bg-emerald-400"
+                            : "bg-white"
+                        }`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="w-8 text-right text-zinc-400">{pct}%</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="flex items-center gap-2 text-[10px] font-mono">
+                <span className="w-3 text-zinc-500 text-right">1</span>
+                <span className="w-24 text-zinc-400 truncate">
+                  0 B - {job.total_bytes ? formatBytes(job.total_bytes) : "Unknown"}
+                </span>
                 <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
                   <div
                     className={`h-full rounded-full transition-all ${
-                      seg.percent >= 95 ? "bg-emerald-400" : "bg-white"
+                      job.status === "completed" || progressPercent >= 100
+                        ? "bg-emerald-400"
+                        : "bg-white"
                     }`}
-                    style={{ width: `${seg.percent}%` }}
+                    style={{ width: `${progressPercent}%` }}
                   />
                 </div>
-                <span className="w-8 text-right text-zinc-400">{seg.percent}%</span>
+                <span className="w-8 text-right text-zinc-400">
+                  {progressPercent}%
+                </span>
               </div>
-            ))}
+            )}
           </div>
         </div>
 
@@ -318,9 +372,11 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
           </div>
 
           <div>
-            <div className="text-zinc-500 font-medium">Server</div>
+            <div className="text-zinc-500 font-medium">Transfer mode</div>
             <div className="text-zinc-300 text-[11px]">
-              206 Partial Content, ranges checked on every segment
+              {job.segmented
+                ? "206 Partial Content (segmented download)"
+                : "Single stream (single connection)"}
             </div>
           </div>
 
@@ -328,7 +384,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
             <div className="text-zinc-500 font-medium">Retries</div>
             <div className="text-zinc-300 text-[11px]">
               {job.retry_count > 0
-                ? `Segment retried (${job.retry_count} of ${job.retry_limit})`
+                ? `${job.retry_count} of ${job.retry_limit} retries`
                 : "No retry errors"}
             </div>
           </div>
@@ -338,8 +394,8 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
             <div className="text-zinc-300 text-[11px] space-y-0.5">
               <div>
                 {job.expected_hash
-                  ? "Compares with the SHA-256 you entered"
-                  : "Automatic SHA-256 integrity calculation"}
+                  ? "Comparing with user-provided SHA-256"
+                  : "SHA-256 integrity calculation on completion"}
               </div>
               {job.expected_hash && (
                 <div className="text-zinc-500 font-mono text-[10px] truncate select-text">

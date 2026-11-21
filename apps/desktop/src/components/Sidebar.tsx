@@ -22,6 +22,7 @@ interface SidebarProps {
   onTabChange: (tab: string) => void;
   selectedCategory: string | null;
   onCategoryChange: (category: string | null) => void;
+  defaultDestination?: string;
   counts: {
     all: number;
     active: number;
@@ -41,6 +42,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTabChange,
   selectedCategory,
   onCategoryChange,
+  defaultDestination,
   counts,
   onOpenSettings,
 }) => {
@@ -156,13 +158,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Downloads folder widget at bottom */}
-      <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-2.5 flex items-center gap-2.5 cursor-pointer hover:border-zinc-700/80 transition-colors">
+      <div
+        onClick={onOpenSettings}
+        className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-2.5 flex items-center gap-2.5 cursor-pointer hover:border-zinc-700/80 transition-colors"
+      >
         <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 shrink-0">
           <HardDrive className="w-3.5 h-3.5" />
         </div>
         <div className="min-w-0 leading-tight">
           <div className="font-medium text-zinc-300 text-xs truncate">Downloads folder</div>
-          <div className="text-[10px] font-mono text-zinc-500 truncate">218 GB free of 512 GB</div>
+          <div className="text-[10px] font-mono text-zinc-500 truncate" title={defaultDestination || "~/Downloads"}>
+            {defaultDestination || "~/Downloads"}
+          </div>
         </div>
       </div>
     </aside>

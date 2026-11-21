@@ -2,11 +2,11 @@ use crate::limiter::BandwidthLimiter;
 use crate::queue::QueueManager;
 use orveth_core::error::{OrvethError, Result};
 use orveth_core::event::EngineEvent;
-use orveth_core::model::{DownloadFilter, DownloadJob, EngineSettings};
+use orveth_core::model::{DownloadFilter, DownloadJob, EngineSettings, Segment};
 use orveth_core::state::{DownloadStatus, VerificationStatus};
 use orveth_integrity::FileHasher;
 use orveth_persistence::{
-    init_db_pool, DbPool, JobRepository, SettingsRepository, StateReconciler,
+    init_db_pool, DbPool, JobRepository, SegmentRepository, SettingsRepository, StateReconciler,
 };
 use orveth_storage::StorageManager;
 use std::path::{Path, PathBuf};
@@ -125,6 +125,10 @@ impl OrvethEngine {
         JobRepository::get(&self.pool, id)
             .await?
             .ok_or_else(|| OrvethError::JobNotFound(id.to_string()))
+    }
+
+    pub async fn get_segments(&self, id: Uuid) -> Result<Vec<Segment>> {
+        SegmentRepository::get_for_job(&self.pool, id).await
     }
 
     pub async fn get_settings(&self) -> Result<EngineSettings> {
