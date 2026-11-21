@@ -217,6 +217,20 @@ impl JobRepository {
         Ok(())
     }
 
+    pub async fn update_priority(pool: &DbPool, id: Uuid, priority: i32) -> Result<()> {
+        let id_str = id.to_string();
+        let now_str = Utc::now().to_rfc3339();
+        sqlx::query("UPDATE downloads SET priority = ?, updated_at = ? WHERE id = ?")
+            .bind(priority as i64)
+            .bind(now_str)
+            .bind(id_str)
+            .execute(pool)
+            .await
+            .map_err(|e| OrvethError::Database(format!("Failed to update job priority: {e}")))?;
+
+        Ok(())
+    }
+
     pub async fn update_completed(
         pool: &DbPool,
         id: Uuid,

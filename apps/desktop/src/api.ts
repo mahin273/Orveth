@@ -92,6 +92,17 @@ export const api = {
     });
   },
 
+  async addDownloadsBatch(
+    urls: string[],
+    destinationDir?: string
+  ): Promise<DownloadJob[]> {
+    return invoke("add_downloads_batch", { urls, destinationDir });
+  },
+
+  async setJobPriority(id: string, priority: number): Promise<void> {
+    return invoke("set_job_priority", { id, priority });
+  },
+
   async pauseDownload(id: string): Promise<void> {
     return invoke("pause_download", { id });
   },

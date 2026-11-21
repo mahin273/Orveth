@@ -86,4 +86,35 @@ mod tests {
         let content = tokio::fs::read_to_string(&final_file).await.unwrap();
         assert_eq!(content, "Hello World");
     }
+
+    #[tokio::test]
+    async fn test_engine_batch_add_and_priority() {
+        let tmp = tempdir().unwrap();
+        let db_path = tmp.path().join("batch.db");
+        let temp_dir = tmp.path().join("temp");
+        let dest_dir = tmp.path().join("downloads");
+
+        let engine = OrvethEngine::init(&db_path, &temp_dir).await.unwrap();
+
+        let urls = vec![
+            "https://example.com/file1.zip".to_string(),
+            "https://example.com/file2.zip".to_string(),
+            "https://example.com/file3.zip".to_string(),
+        ];
+
+        let added = engine
+            .add_downloads_batch(urls, Some(dest_dir))
+            .await
+            .unwrap();
+        assert_eq!(added.len(), 3);
+
+        // Adjust priority of file3 to 10
+        engine.set_job_priority(added[2].id, 10).await.unwrap();
+
+        let list = engine.list_downloads(&Default::default()).await.unwrap();
+        assert_eq!(list.len(), 3);
+        // file3 should be ordered first
+        assert_eq!(list[0].id, added[2].id);
+        assert_eq!(list[0].priority, 10);
+    }
 }

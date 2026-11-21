@@ -1,7 +1,16 @@
-import React from "react";
+import React, { useState, useRef } from "react";
 import { DownloadJob } from "../api";
 import { DownloadRow } from "./DownloadRow";
-import { ArrowUpDown, Inbox, Plus } from "lucide-react";
+import {
+  ArrowUpDown,
+  Inbox,
+  Plus,
+  Play,
+  Pause,
+  Trash2,
+  ArrowUp,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface DownloadListProps {
@@ -26,6 +35,11 @@ interface DownloadListProps {
     failed: number;
   };
   speedsById?: Record<string, number>;
+  onSetPriority?: (id: string, priority: number) => void;
+  onBatchPause?: (ids: string[]) => void;
+  onBatchResume?: (ids: string[]) => void;
+  onBatchDelete?: (ids: string[]) => void;
+  onBatchSetPriority?: (ids: string[], priority: number) => void;
 }
 
 export const DownloadList: React.FC<DownloadListProps> = ({
@@ -44,7 +58,15 @@ export const DownloadList: React.FC<DownloadListProps> = ({
   onFilterChange,
   counts,
   speedsById = {},
+  onSetPriority,
+  onBatchPause,
+  onBatchResume,
+  onBatchDelete,
+  onBatchSetPriority,
 }) => {
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
+  const lastClickedIdRef = useRef<string | null>(null);
+
   const tabs = [
     { id: "all", label: "All", count: counts.all },
     { id: "active", label: "Active", count: counts.active },
@@ -52,6 +74,47 @@ export const DownloadList: React.FC<DownloadListProps> = ({
     { id: "completed", label: "Completed", count: counts.completed },
     { id: "failed", label: "Failed", count: counts.failed },
   ];
+
+  const visibleIds = jobs.map((j) => j.id);
+  const isAllSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selectedRowIds.has(id));
+  const isSomeSelected =
+    visibleIds.some((id) => selectedRowIds.has(id)) && !isAllSelected;
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedRowIds(new Set());
+    } else {
+      setSelectedRowIds(new Set(visibleIds));
+    }
+  };
+
+  const handleToggleCheck = (id: string, e: React.MouseEvent) => {
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev);
+      if (e.shiftKey && lastClickedIdRef.current) {
+        // Range select
+        const lastIdx = visibleIds.indexOf(lastClickedIdRef.current);
+        const curIdx = visibleIds.indexOf(id);
+        if (lastIdx !== -1 && curIdx !== -1) {
+          const start = Math.min(lastIdx, curIdx);
+          const end = Math.max(lastIdx, curIdx);
+          for (let i = start; i <= end; i++) {
+            next.add(visibleIds[i]);
+          }
+          return next;
+        }
+      }
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+    lastClickedIdRef.current = id;
+  };
 
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-black">
@@ -78,15 +141,118 @@ export const DownloadList: React.FC<DownloadListProps> = ({
           })}
         </div>
 
-        {/* Queue Order button */}
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-950/80 border border-zinc-800/80 hover:border-zinc-700/80 text-xs font-medium text-zinc-300 hover:text-white transition-colors">
-          <ArrowUpDown className="w-3.5 h-3.5 text-zinc-400" />
-          <span>Queue order</span>
-        </button>
+        {/* Queue Order Info */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-950/80 border border-zinc-800/80 text-xs font-medium text-zinc-400">
+            <ArrowUpDown className="w-3.5 h-3.5 text-zinc-500" />
+            <span>Priority Queue</span>
+          </div>
+        </div>
       </div>
 
+      {/* Bulk Action Bar (Visible when >= 1 rows selected) */}
+      {selectedRowIds.size > 0 && (
+        <div className="mx-6 my-2 px-4 py-2 bg-zinc-900/90 border border-zinc-700/80 rounded-xl flex items-center justify-between shadow-xl text-xs select-none">
+          <div className="flex items-center gap-3">
+            <span className="font-medium text-white">
+              <span className="font-mono text-sky-400">{selectedRowIds.size}</span> selected
+            </span>
+            <button
+              onClick={() => setSelectedRowIds(new Set())}
+              className="text-zinc-400 hover:text-white flex items-center gap-1 text-[11px] transition-colors"
+            >
+              <X className="w-3 h-3" />
+              <span>Deselect</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBatchResume?.(Array.from(selectedRowIds))}
+              className="h-7 px-2.5 text-xs bg-zinc-950 hover:bg-zinc-800 text-zinc-200 border-zinc-700 gap-1.5 font-normal"
+            >
+              <Play className="w-3 h-3 text-emerald-400" />
+              <span>Resume</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBatchPause?.(Array.from(selectedRowIds))}
+              className="h-7 px-2.5 text-xs bg-zinc-950 hover:bg-zinc-800 text-zinc-200 border-zinc-700 gap-1.5 font-normal"
+            >
+              <Pause className="w-3 h-3 text-amber-400" />
+              <span>Pause</span>
+            </Button>
+
+            <div className="h-4 w-px bg-zinc-800 mx-1" />
+
+            {/* Bulk Priority */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBatchSetPriority?.(Array.from(selectedRowIds), 10)}
+              className="h-7 px-2 text-xs bg-zinc-950 hover:bg-zinc-800 text-amber-400 border-zinc-700 gap-1 font-normal"
+              title="Set High Priority (+10)"
+            >
+              <ArrowUp className="w-3 h-3 text-amber-400" />
+              <span>High</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBatchSetPriority?.(Array.from(selectedRowIds), 0)}
+              className="h-7 px-2 text-xs bg-zinc-950 hover:bg-zinc-800 text-zinc-300 border-zinc-700 font-normal"
+              title="Set Normal Priority (0)"
+            >
+              <span>Normal</span>
+            </Button>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => onBatchSetPriority?.(Array.from(selectedRowIds), -10)}
+              className="h-7 px-2 text-xs bg-zinc-950 hover:bg-zinc-800 text-zinc-400 border-zinc-700 font-normal"
+              title="Set Low Priority (-10)"
+            >
+              <span>Low</span>
+            </Button>
+
+            <div className="h-4 w-px bg-zinc-800 mx-1" />
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onBatchDelete?.(Array.from(selectedRowIds));
+                setSelectedRowIds(new Set());
+              }}
+              className="h-7 px-2.5 text-xs bg-red-500/10 hover:bg-red-500/20 text-red-400 border-red-500/30 gap-1.5 font-normal"
+            >
+              <Trash2 className="w-3 h-3 text-red-400" />
+              <span>Delete</span>
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Table Column Header */}
-      <div className="px-10 py-2 flex items-center gap-4 text-[11px] font-medium text-zinc-500 select-none border-b border-zinc-900/60">
+      <div className="px-10 py-2 flex items-center gap-3.5 text-[11px] font-medium text-zinc-500 select-none border-b border-zinc-900/60">
+        <div className="w-4 shrink-0 flex items-center justify-center">
+          <input
+            type="checkbox"
+            checked={isAllSelected}
+            ref={(el) => {
+              if (el) el.indeterminate = isSomeSelected;
+            }}
+            onChange={toggleSelectAll}
+            className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-900 text-white accent-white cursor-pointer"
+            title="Select all visible"
+          />
+        </div>
         <div className="flex-1">Name</div>
         <div className="w-32">Status</div>
         <div className="w-48">Progress</div>
@@ -121,7 +287,9 @@ export const DownloadList: React.FC<DownloadListProps> = ({
               key={job.id}
               job={job}
               isSelected={selectedJobId === job.id}
+              isChecked={selectedRowIds.has(job.id)}
               onSelect={onSelectJob}
+              onToggleCheck={handleToggleCheck}
               onPause={onPause}
               onResume={onResume}
               onRetry={onRetry}
@@ -129,6 +297,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
               onDelete={onDelete}
               onOpen={onOpen}
               onReveal={onReveal}
+              onSetPriority={onSetPriority}
               speedBytesPerSec={speedsById[job.id] || 0}
             />
           ))

@@ -11,6 +11,7 @@ interface JobDetailDrawerProps {
   onOpen: (id: string) => void;
   onReveal: (id: string) => void;
   onDelete?: (id: string) => void;
+  onSetPriority?: (id: string, priority: number) => void;
   speedBytesPerSec?: number;
   peakSpeedBytesPerSec?: number;
   speedHistory?: number[];
@@ -23,6 +24,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
   onResume,
   onOpen,
   onDelete,
+  onSetPriority,
   speedBytesPerSec = 0,
   peakSpeedBytesPerSec = 0,
   speedHistory = [],
@@ -456,6 +458,45 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
                   {job.expected_hash}
                 </div>
               )}
+            </div>
+          </div>
+
+          <div>
+            <div className="text-zinc-500 font-medium">Queue priority</div>
+            <div className="flex items-center gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={() => onSetPriority?.(job.id, 10)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                  job.priority > 0
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold"
+                    : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                }`}
+              >
+                High (+10)
+              </button>
+              <button
+                type="button"
+                onClick={() => onSetPriority?.(job.id, 0)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                  job.priority === 0
+                    ? "bg-zinc-800 text-white border border-zinc-700 font-semibold"
+                    : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                }`}
+              >
+                Normal (0)
+              </button>
+              <button
+                type="button"
+                onClick={() => onSetPriority?.(job.id, -10)}
+                className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                  job.priority < 0
+                    ? "bg-zinc-800 text-zinc-300 border border-zinc-700 font-semibold"
+                    : "bg-zinc-900 text-zinc-400 hover:text-white border border-zinc-800"
+                }`}
+              >
+                Low (-10)
+              </button>
             </div>
           </div>
         </div>
