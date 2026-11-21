@@ -41,14 +41,57 @@ impl DownloadJob {
         let name = match custom_file_name {
             Some(n) if !n.trim().is_empty() => sanitize_filename(&n),
             _ => {
-                let inferred = url_str
-                    .split('?')
-                    .next()
-                    .unwrap_or(&url_str)
-                    .rsplit('/')
-                    .next()
-                    .unwrap_or("download");
-                sanitize_filename(inferred)
+                let mut chosen: Option<String> = None;
+                let generic_names = [
+                    "download",
+                    "download.php",
+                    "get",
+                    "file",
+                    "index.html",
+                    "index.php",
+                    "view",
+                ];
+
+                if let Ok(parsed) = url::Url::parse(&url_str) {
+                    // Check query parameters first if present
+                    for (k, v) in parsed.query_pairs() {
+                        let k_lower = k.to_ascii_lowercase();
+                        if ["filename", "file", "name", "fn"].contains(&k_lower.as_str())
+                            && !v.trim().is_empty()
+                        {
+                            chosen = Some(v.into_owned());
+                            break;
+                        }
+                    }
+
+                    // If not found in query, inspect path segments
+                    if chosen.is_none() {
+                        if let Some(segments) = parsed.path_segments() {
+                            let segs: Vec<&str> = segments.filter(|s| !s.is_empty()).collect();
+                            if let Some(last) = segs.last() {
+                                if generic_names.contains(&last.to_ascii_lowercase().as_str())
+                                    && segs.len() > 1
+                                {
+                                    for prev in segs.iter().rev().skip(1) {
+                                        if !generic_names
+                                            .contains(&prev.to_ascii_lowercase().as_str())
+                                            && !prev.is_empty()
+                                        {
+                                            chosen = Some(prev.to_string());
+                                            break;
+                                        }
+                                    }
+                                }
+                                if chosen.is_none() {
+                                    chosen = Some(last.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+
+                let final_name = chosen.unwrap_or_else(|| "download".to_string());
+                sanitize_filename(&final_name)
             }
         };
 
@@ -187,4 +230,39 @@ pub struct DownloadFilter {
     pub status: Option<DownloadStatus>,
     pub category: Option<String>,
     pub query: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_download_job_infer_filename_sourceforge() {
+        let job = DownloadJob::new(
+            "https://sourceforge.net/projects/ghosuto/files/ghosuto-linux-v0.1.iso/download",
+            "/tmp",
+            None,
+        );
+        assert_eq!(job.file_name, "ghosuto-linux-v0.1.iso");
+    }
+
+    #[test]
+    fn test_download_job_infer_filename_query() {
+        let job = DownloadJob::new(
+            "https://example.com/download.php?file=archive.tar.gz",
+            "/tmp",
+            None,
+        );
+        assert_eq!(job.file_name, "archive.tar.gz");
+    }
+
+    #[test]
+    fn test_download_job_custom_filename() {
+        let job = DownloadJob::new(
+            "https://example.com/download",
+            "/tmp",
+            Some("custom.iso".to_string()),
+        );
+        assert_eq!(job.file_name, "custom.iso");
+    }
 }

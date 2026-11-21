@@ -1,100 +1,169 @@
 import React from "react";
 import {
-  Download,
+  LayoutGrid,
+  ListFilter,
+  ArrowDownToLine,
   Clock,
   CheckCircle2,
-  AlertCircle,
-  Layers,
+  AlertTriangle,
+  Disc,
+  Code,
+  Box,
+  Database,
+  RotateCcw,
   Settings,
+  HardDrive,
+  ChevronsUpDown,
   HardDriveDownload,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Separator } from "@/components/ui/separator";
 
 interface SidebarProps {
   currentTab: string;
   onTabChange: (tab: string) => void;
-  counts: Record<string, number>;
+  selectedCategory: string | null;
+  onCategoryChange: (category: string | null) => void;
+  counts: {
+    all: number;
+    active: number;
+    queued: number;
+    completed: number;
+    failed: number;
+    diskImages?: number;
+    sourceCode?: number;
+    applications?: number;
+    datasets?: number;
+  };
   onOpenSettings: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   currentTab,
   onTabChange,
+  selectedCategory,
+  onCategoryChange,
   counts,
   onOpenSettings,
 }) => {
-  const navItems = [
-    { id: "all", label: "All Downloads", icon: Layers, count: counts.all || 0 },
-    { id: "active", label: "Active", icon: Download, count: counts.active || 0 },
-    { id: "queued", label: "Queued", icon: Clock, count: counts.queued || 0 },
-    { id: "completed", label: "Completed", icon: CheckCircle2, count: counts.completed || 0 },
-    { id: "failed", label: "Failed", icon: AlertCircle, count: counts.failed || 0 },
+  const mainNav = [
+    { id: "overview", label: "Overview", icon: LayoutGrid, count: undefined },
+    { id: "all", label: "All downloads", icon: ListFilter, count: counts.all },
+    { id: "active", label: "Active", icon: ArrowDownToLine, count: counts.active },
+    { id: "queued", label: "Queued", icon: Clock, count: counts.queued },
+    { id: "completed", label: "Completed", icon: CheckCircle2, count: counts.completed },
+    { id: "failed", label: "Failed", icon: AlertTriangle, count: counts.failed },
+  ];
+
+  const categories = [
+    { id: "disk", label: "Disk images", icon: Disc, count: counts.diskImages || 0 },
+    { id: "code", label: "Source code", icon: Code, count: counts.sourceCode || 0 },
+    { id: "apps", label: "Applications", icon: Box, count: counts.applications || 0 },
+    { id: "data", label: "Datasets", icon: Database, count: counts.datasets || 0 },
   ];
 
   return (
-    <aside className="w-60 bg-black border-r border-border flex flex-col justify-between p-3 shrink-0 select-none">
+    <aside className="w-[230px] bg-black border-r border-zinc-900 flex flex-col justify-between p-3 shrink-0 select-none text-xs">
       <div className="space-y-4">
-        {/* Brand header */}
-        <div className="flex items-center gap-2.5 px-3 py-2">
-          <div className="w-7 h-7 rounded-md bg-white text-black flex items-center justify-center font-bold shadow-sm">
-            <HardDriveDownload className="w-4 h-4 text-black" />
+        {/* Profile Card */}
+        <div className="bg-zinc-950/80 border border-zinc-800/80 hover:border-zinc-700/80 transition-colors rounded-xl p-2.5 flex items-center justify-between cursor-pointer group">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-700/70 flex items-center justify-center text-white shrink-0 group-hover:bg-zinc-800 transition-colors">
+              <HardDriveDownload className="w-4 h-4 text-white" />
+            </div>
+            <div className="min-w-0 leading-tight">
+              <div className="font-semibold text-zinc-100 truncate text-xs">Orveth</div>
+              <div className="text-[11px] text-zinc-400 truncate">Balanced profile</div>
+            </div>
           </div>
-          <div className="flex items-baseline gap-2">
-            <span className="font-semibold text-sm tracking-tight text-foreground">Orveth</span>
-            <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Engine</span>
-          </div>
+          <ChevronsUpDown className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
         </div>
 
-        <Separator className="bg-border/60" />
-
-        {/* Navigation list */}
-        <nav className="space-y-1">
-          {navItems.map((item) => {
+        {/* Main Navigation */}
+        <nav className="space-y-0.5">
+          {mainNav.map((item) => {
             const Icon = item.icon;
-            const isActive = currentTab === item.id;
+            const isActive = selectedCategory === null && currentTab === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => onTabChange(item.id)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors ${
+                onClick={() => {
+                  onCategoryChange(null);
+                  onTabChange(item.id);
+                }}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all ${
                   isActive
-                    ? "bg-secondary text-foreground font-semibold shadow-sm"
-                    : "text-muted-foreground hover:text-foreground hover:bg-secondary/50"
+                    ? "bg-zinc-900 border border-zinc-800 text-white font-medium"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40"
                 }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? "text-foreground" : "text-muted-foreground"}`} />
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-zinc-400"}`} />
                   <span>{item.label}</span>
                 </div>
-                {item.count > 0 && (
-                  <Badge
-                    variant={isActive ? "default" : "secondary"}
-                    className={`h-5 px-1.5 text-[11px] font-mono font-medium ${
-                      isActive ? "bg-white text-black hover:bg-white" : ""
-                    }`}
-                  >
-                    {item.count}
-                  </Badge>
+                {item.count !== undefined && item.count > 0 && (
+                  <span className="font-mono text-[11px] text-zinc-500">{item.count}</span>
                 )}
               </button>
             );
           })}
         </nav>
+
+        {/* Categories */}
+        <div className="space-y-0.5">
+          <div className="px-2.5 py-1 text-[11px] font-medium text-zinc-500">Categories</div>
+          {categories.map((cat) => {
+            const Icon = cat.icon;
+            const isActive = selectedCategory === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => onCategoryChange(isActive ? null : cat.id)}
+                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-all ${
+                  isActive
+                    ? "bg-zinc-900 border border-zinc-800 text-white font-medium"
+                    : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Icon className={`w-3.5 h-3.5 ${isActive ? "text-white" : "text-zinc-400"}`} />
+                  <span>{cat.label}</span>
+                </div>
+                {cat.count > 0 && (
+                  <span className="font-mono text-[11px] text-zinc-500">{cat.count}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* App Section */}
+        <div className="space-y-0.5">
+          <div className="px-2.5 py-1 text-[11px] font-medium text-zinc-500">App</div>
+          <button
+            onClick={() => onTabChange("completed")}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
+            <span>History</span>
+          </button>
+          <button
+            onClick={onOpenSettings}
+            className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40 transition-colors"
+          >
+            <Settings className="w-3.5 h-3.5 text-zinc-400" />
+            <span>Settings</span>
+          </button>
+        </div>
       </div>
 
-      {/* Settings Footer */}
-      <div className="space-y-2 pt-2 border-t border-border/60">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onOpenSettings}
-          className="w-full justify-start text-xs text-muted-foreground hover:text-foreground px-3 h-9"
-        >
-          <Settings className="w-4 h-4 mr-2.5 text-muted-foreground" />
-          <span>Preferences</span>
-        </Button>
+      {/* Downloads folder widget at bottom */}
+      <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-2.5 flex items-center gap-2.5 cursor-pointer hover:border-zinc-700/80 transition-colors">
+        <div className="w-7 h-7 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-400 shrink-0">
+          <HardDrive className="w-3.5 h-3.5" />
+        </div>
+        <div className="min-w-0 leading-tight">
+          <div className="font-medium text-zinc-300 text-xs truncate">Downloads folder</div>
+          <div className="text-[10px] font-mono text-zinc-500 truncate">218 GB free of 512 GB</div>
+        </div>
       </div>
     </aside>
   );

@@ -9,6 +9,7 @@ pub struct ServerCapabilities {
     pub content_length: Option<u64>,
     pub final_url: String,
     pub content_type: Option<String>,
+    pub suggested_filename: Option<String>,
 }
 
 pub struct CapabilityDetector;
@@ -109,11 +110,109 @@ impl CapabilityDetector {
             }
         }
 
+        // Extract suggested filename from Content-Disposition header or final URL
+        let mut suggested_filename = None;
+        if let Some(cd) = headers
+            .get(reqwest::header::CONTENT_DISPOSITION)
+            .and_then(|v| v.to_str().ok())
+        {
+            if let Some(fname) = Self::extract_filename_from_content_disposition(cd) {
+                suggested_filename = Some(fname);
+            }
+        }
+
+        if suggested_filename.is_none() {
+            if let Ok(parsed_url) = url::Url::parse(&final_url) {
+                if let Some(segments) = parsed_url.path_segments() {
+                    let segs: Vec<&str> = segments.filter(|s| !s.is_empty()).collect();
+                    let generic = [
+                        "download",
+                        "download.php",
+                        "get",
+                        "file",
+                        "index.html",
+                        "index.php",
+                        "view",
+                    ];
+                    if let Some(last) = segs.last() {
+                        if !generic.contains(&last.to_ascii_lowercase().as_str())
+                            && last.contains('.')
+                        {
+                            suggested_filename =
+                                Some(orveth_core::sanitize::sanitize_filename(last));
+                        } else if generic.contains(&last.to_ascii_lowercase().as_str())
+                            && segs.len() > 1
+                        {
+                            for prev in segs.iter().rev().skip(1) {
+                                if !generic.contains(&prev.to_ascii_lowercase().as_str())
+                                    && prev.contains('.')
+                                {
+                                    suggested_filename =
+                                        Some(orveth_core::sanitize::sanitize_filename(prev));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Ok(ServerCapabilities {
             range_supported,
             content_length: total_length,
             final_url,
             content_type,
+            suggested_filename,
         })
+    }
+
+    fn extract_filename_from_content_disposition(header: &str) -> Option<String> {
+        if let Some(idx) = header.to_ascii_lowercase().find("filename*=") {
+            let rest = &header[idx + 10..];
+            let val = rest.split(';').next().unwrap_or(rest).trim();
+            let encoded = val
+                .strip_prefix("UTF-8''")
+                .or_else(|| val.strip_prefix("utf-8''"))
+                .unwrap_or(val);
+            let decoded = url::form_urlencoded::parse(encoded.as_bytes())
+                .map(|(k, _)| k.to_string())
+                .collect::<Vec<_>>()
+                .join("");
+            let clean = decoded.trim().trim_matches('"').trim();
+            if !clean.is_empty() {
+                return Some(orveth_core::sanitize::sanitize_filename(clean));
+            }
+        }
+
+        if let Some(idx) = header.to_ascii_lowercase().find("filename=") {
+            let rest = &header[idx + 9..];
+            let val = rest.split(';').next().unwrap_or(rest).trim();
+            let clean = val.trim_matches('"').trim();
+            if !clean.is_empty() {
+                return Some(orveth_core::sanitize::sanitize_filename(clean));
+            }
+        }
+
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_extract_filename_content_disposition_standard() {
+        let header = r#"attachment; filename="ghosuto-2024.iso""#;
+        let fname = CapabilityDetector::extract_filename_from_content_disposition(header);
+        assert_eq!(fname, Some("ghosuto-2024.iso".to_string()));
+    }
+
+    #[test]
+    fn test_extract_filename_content_disposition_rfc5987() {
+        let header = "attachment; filename*=UTF-8''document%20test.pdf";
+        let fname = CapabilityDetector::extract_filename_from_content_disposition(header);
+        assert_eq!(fname, Some("document test.pdf".to_string()));
     }
 }

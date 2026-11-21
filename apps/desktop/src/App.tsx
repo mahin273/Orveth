@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useRef } from "react";
 import { api, DownloadJob, EngineSettings } from "./api";
 import { Sidebar } from "./components/Sidebar";
 import { Toolbar } from "./components/Toolbar";
@@ -7,7 +7,6 @@ import { DownloadList } from "./components/DownloadList";
 import { AddDownloadDialog } from "./components/AddDownloadDialog";
 import { JobDetailDrawer } from "./components/JobDetailDrawer";
 import { SettingsModal } from "./components/SettingsModal";
-import { HardDrive, ShieldCheck } from "lucide-react";
 
 export const App: React.FC = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
@@ -25,15 +24,60 @@ export const App: React.FC = () => {
   });
 
   const [currentTab, setCurrentTab] = useState("all");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<DownloadJob | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
 
+  // Live speed tracking
+  const [speedsById, setSpeedsById] = useState<Record<string, number>>({});
+  const [totalSpeed, setTotalSpeed] = useState<number>(0);
+  const [speedHistory, setSpeedHistory] = useState<number[]>([4, 6, 5, 8, 7, 9, 11.5]);
+  const prevBytesRef = useRef<{ time: number; bytesById: Record<string, number> }>({
+    time: Date.now(),
+    bytesById: {},
+  });
+
   const fetchJobs = async () => {
     try {
       const list = await api.listDownloads();
       setJobs(list);
+
+      // Compute speed delta
+      const now = Date.now();
+      const prev = prevBytesRef.current;
+      const elapsedSec = Math.max(0.2, (now - prev.time) / 1000);
+
+      let currentTotalSpeed = 0;
+      const newSpeeds: Record<string, number> = {};
+
+      list.forEach((job) => {
+        const prevBytes = prev.bytesById[job.id] ?? job.downloaded_bytes;
+        const deltaBytes = Math.max(0, job.downloaded_bytes - prevBytes);
+        const speed = Math.round(deltaBytes / elapsedSec);
+        if (["downloading", "retrying"].includes(job.status)) {
+          newSpeeds[job.id] = speed;
+          currentTotalSpeed += speed;
+        } else {
+          newSpeeds[job.id] = 0;
+        }
+      });
+
+      prevBytesRef.current = {
+        time: now,
+        bytesById: Object.fromEntries(list.map((j) => [j.id, j.downloaded_bytes])),
+      };
+
+      setSpeedsById(newSpeeds);
+      setTotalSpeed(currentTotalSpeed);
+
+      if (currentTotalSpeed > 0) {
+        setSpeedHistory((h) => {
+          const next = [...h.slice(-29), +(currentTotalSpeed / (1024 * 1024)).toFixed(1)];
+          return next;
+        });
+      }
     } catch (e) {
       console.error("Failed fetching downloads:", e);
     }
@@ -52,10 +96,8 @@ export const App: React.FC = () => {
     fetchJobs();
     fetchSettings();
 
-    // Poll periodically for UI update sync
     const interval = setInterval(fetchJobs, 1000);
 
-    // Listen for live engine events
     let unlisten: (() => void) | undefined;
     api.onEngineEvent((_) => {
       fetchJobs();
@@ -71,20 +113,67 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // Keyboard shortcut Ctrl+K to search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        const searchInput = document.querySelector('input[placeholder="Search downloads"]') as HTMLInputElement;
+        if (searchInput) searchInput.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  // Compute counts
   const counts = useMemo(() => {
+    const isDisk = (n: string) => /\.(iso|img)$/i.test(n);
+    const isCode = (n: string) => /\.(tar\.[a-z0-9]+|zip|gz|xz|zst|rs|py|c|cpp|js|ts)$/i.test(n);
+    const isApp = (n: string) => /\.(appimage|deb|rpm|exe|flatpakref)$/i.test(n);
+    const isData = (n: string) => /\.(csv|parquet|zst|bin|dat|sqlite|json)$/i.test(n);
+
     return {
       all: jobs.length,
       active: jobs.filter((j) =>
         ["preparing", "downloading", "pausing", "retrying", "verifying"].includes(j.status)
       ).length,
+      downloading: jobs.filter((j) => j.status === "downloading").length,
+      retrying: jobs.filter((j) => j.status === "retrying").length,
       queued: jobs.filter((j) => j.status === "queued").length,
       completed: jobs.filter((j) => j.status === "completed").length,
       failed: jobs.filter((j) => j.status === "failed" || j.status === "needs_attention").length,
+      diskImages: jobs.filter((j) => isDisk(j.file_name)).length,
+      sourceCode: jobs.filter((j) => isCode(j.file_name)).length,
+      applications: jobs.filter((j) => isApp(j.file_name)).length,
+      datasets: jobs.filter((j) => isData(j.file_name)).length,
     };
   }, [jobs]);
 
+  // Compute left to download
+  const { leftToDownloadBytes, unfinishedCount, nextQueuedFileName } = useMemo(() => {
+    const unfinished = jobs.filter((j) => j.status !== "completed");
+    const bytes = unfinished.reduce((acc, j) => {
+      const total = j.total_bytes || 0;
+      return acc + Math.max(0, total - j.downloaded_bytes);
+    }, 0);
+    const nextQueued = jobs.find((j) => j.status === "queued")?.file_name;
+    return {
+      leftToDownloadBytes: bytes,
+      unfinishedCount: unfinished.length,
+      nextQueuedFileName: nextQueued,
+    };
+  }, [jobs]);
+
+  // Filtered jobs
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
+      // Category filter
+      if (selectedCategory === "disk" && !/\.(iso|img)$/i.test(job.file_name)) return false;
+      if (selectedCategory === "code" && !/\.(tar\.[a-z0-9]+|zip|gz|xz|zst|rs|py|c|cpp|js|ts)$/i.test(job.file_name)) return false;
+      if (selectedCategory === "apps" && !/\.(appimage|deb|rpm|exe|flatpakref)$/i.test(job.file_name)) return false;
+      if (selectedCategory === "data" && !/\.(csv|parquet|zst|bin|dat|sqlite|json)$/i.test(job.file_name)) return false;
+
       // Tab filter
       if (currentTab === "active") {
         if (!["preparing", "downloading", "pausing", "retrying", "verifying"].includes(job.status)) {
@@ -110,80 +199,176 @@ export const App: React.FC = () => {
 
       return true;
     });
-  }, [jobs, currentTab, searchQuery]);
+  }, [jobs, currentTab, selectedCategory, searchQuery]);
+
+  // Auto-select first job if none selected and jobs exist
+  useEffect(() => {
+    if (!selectedJob && filteredJobs.length > 0) {
+      setSelectedJob(filteredJobs[0]);
+    } else if (selectedJob) {
+      // Keep selected job updated with latest state
+      const fresh = jobs.find((j) => j.id === selectedJob.id);
+      if (fresh) setSelectedJob(fresh);
+    }
+  }, [filteredJobs, jobs, selectedJob]);
+
+  // Toggle pause all
+  const isAllPaused = counts.downloading === 0 && counts.active > 0;
+  const handleTogglePauseAll = async () => {
+    const activeJobs = jobs.filter((j) =>
+      ["downloading", "preparing", "retrying"].includes(j.status)
+    );
+    const pausedJobs = jobs.filter((j) => j.status === "paused");
+
+    if (activeJobs.length > 0) {
+      for (const j of activeJobs) {
+        await api.pauseDownload(j.id);
+      }
+    } else if (pausedJobs.length > 0) {
+      for (const j of pausedJobs) {
+        await api.resumeDownload(j.id);
+      }
+    }
+    await fetchJobs();
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await api.cancelDownload(id, true);
+    } catch {
+      // Ignored if already canceled/finished
+    }
+    try {
+      await api.removeDownload(id, true);
+    } catch (e) {
+      console.error("Failed to remove download:", e);
+    }
+    if (selectedJob?.id === id) {
+      setSelectedJob(null);
+    }
+    await fetchJobs();
+  };
+
+  const breadcrumb = useMemo(() => {
+    if (selectedCategory) {
+      const catMap: Record<string, string> = {
+        disk: "Disk images",
+        code: "Source code",
+        apps: "Applications",
+        data: "Datasets",
+      };
+      return `Categories / ${catMap[selectedCategory] || selectedCategory}`;
+    }
+    const tabMap: Record<string, string> = {
+      all: "All downloads",
+      active: "Active",
+      queued: "Queued",
+      completed: "Completed",
+      failed: "Failed",
+      overview: "Overview",
+    };
+    return tabMap[currentTab] || "All downloads";
+  }, [selectedCategory, currentTab]);
 
   return (
-    <div className="flex h-screen w-screen bg-black text-foreground overflow-hidden font-sans select-none antialiased">
-      <Sidebar
-        currentTab={currentTab}
-        onTabChange={setCurrentTab}
-        counts={counts}
-        onOpenSettings={() => setIsSettingsModalOpen(true)}
-      />
-
-      <div className="flex-1 flex flex-col min-w-0 bg-black">
-        <Toolbar
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          onOpenAddModal={() => setIsAddModalOpen(true)}
-          bandwidthCap={settings.global_bandwidth_limit_bytes_per_sec}
+    <div className="flex flex-col h-screen w-screen bg-black text-foreground overflow-hidden font-sans select-none antialiased">
+      {/* 3-Column Workspace Layout */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* 1. Left Sidebar */}
+        <Sidebar
+          currentTab={currentTab}
+          onTabChange={setCurrentTab}
+          selectedCategory={selectedCategory}
+          onCategoryChange={setSelectedCategory}
+          counts={counts}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
         />
 
-        <OverviewCards
-          activeCount={counts.active}
-          queuedCount={counts.queued}
-          completedCount={counts.completed}
-          totalSpeedBytesPerSec={0}
-        />
+        {/* 2. Middle Main Panel */}
+        <div className="flex-1 flex flex-col min-w-0 bg-black">
+          <Toolbar
+            breadcrumb={breadcrumb}
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            onOpenAddModal={() => setIsAddModalOpen(true)}
+            isAllPaused={isAllPaused}
+            onTogglePauseAll={handleTogglePauseAll}
+          />
 
-        <div className="flex-1 flex min-h-0 bg-black">
+          <OverviewCards
+            activeCount={counts.active}
+            downloadingCount={counts.downloading}
+            retryingCount={counts.retrying}
+            queuedCount={counts.queued}
+            nextQueuedFileName={nextQueuedFileName}
+            totalSpeedBytesPerSec={totalSpeed}
+            bandwidthCap={settings.global_bandwidth_limit_bytes_per_sec}
+            leftToDownloadBytes={leftToDownloadBytes}
+            unfinishedCount={unfinishedCount}
+            speedHistory={speedHistory}
+          />
+
           <DownloadList
             jobs={filteredJobs}
+            selectedJobId={selectedJob?.id || null}
+            onSelectJob={(j) => setSelectedJob(j)}
             onPause={(id) => api.pauseDownload(id)}
             onResume={(id) => api.resumeDownload(id)}
             onRetry={(id) => api.retryDownload(id)}
             onCancel={(id) => api.cancelDownload(id, true)}
+            onDelete={handleDelete}
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
-            onSelectJob={(j) => setSelectedJob(j)}
             onOpenAddModal={() => setIsAddModalOpen(true)}
+            activeFilter={currentTab}
+            onFilterChange={setCurrentTab}
+            counts={counts}
+            speedsById={speedsById}
           />
-
-          {selectedJob && (
-            <JobDetailDrawer
-              job={selectedJob}
-              onClose={() => setSelectedJob(null)}
-              onRetry={(id) => api.retryDownload(id)}
-            />
-          )}
         </div>
 
-        {/* Minimalist bottom status bar */}
-        <footer className="h-6 border-t border-border bg-black px-4 flex items-center justify-between text-[11px] font-mono text-muted-foreground shrink-0">
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1 text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>Engine Online</span>
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1">
-              <HardDrive className="w-3 h-3 text-zinc-500" />
-              <span className="truncate max-w-[200px]">{settings.default_destination}</span>
-            </span>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <span className="flex items-center gap-1">
-              <ShieldCheck className="w-3 h-3 text-zinc-500" />
-              <span>SHA-256 Enabled</span>
-            </span>
-            <span className="text-border">|</span>
-            <span>Orveth v0.1.0</span>
-          </div>
-        </footer>
+        {/* 3. Right Inspector / Detail Panel */}
+        {selectedJob && (
+          <JobDetailDrawer
+            job={selectedJob}
+            onClose={() => setSelectedJob(null)}
+            onPause={(id) => api.pauseDownload(id)}
+            onResume={(id) => api.resumeDownload(id)}
+            onDelete={handleDelete}
+            onOpen={(id) => api.openFile(id)}
+            onReveal={(id) => api.revealFile(id)}
+            speedBytesPerSec={speedsById[selectedJob.id] || 0}
+            speedHistory={speedHistory}
+          />
+        )}
       </div>
 
+      {/* Persistent Bottom Status Bar */}
+      <footer className="h-7 border-t border-zinc-900 bg-black px-4 flex items-center justify-between text-[11px] font-mono text-zinc-500 shrink-0 select-none">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5 text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="font-sans text-xs">Engine running</span>
+          </span>
+          <span className="text-zinc-400">
+            ↓ {(totalSpeed / (1024 * 1024)).toFixed(1)} MB/s
+          </span>
+          <span>
+            {settings.global_bandwidth_limit_bytes_per_sec
+              ? `Limit: ${(settings.global_bandwidth_limit_bytes_per_sec / 1024 / 1024).toFixed(1)} MB/s`
+              : "Global limit off"}
+          </span>
+          <span>
+            {settings.default_segment_count} segments per file by default, up to {settings.max_segment_count}
+          </span>
+        </div>
+
+        <div className="text-zinc-500">
+          Orveth 0.1.3
+        </div>
+      </footer>
+
+      {/* Add Download Modal */}
       <AddDownloadDialog
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -194,6 +379,7 @@ export const App: React.FC = () => {
         }}
       />
 
+      {/* Settings Preferences Modal */}
       <SettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
