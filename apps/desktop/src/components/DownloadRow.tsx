@@ -12,12 +12,15 @@ import {
   FolderOpen,
   MoreHorizontal,
   Trash2,
+  ArrowUp,
 } from "lucide-react";
 
 interface DownloadRowProps {
   job: DownloadJob;
   isSelected: boolean;
+  isChecked?: boolean;
   onSelect: (job: DownloadJob) => void;
+  onToggleCheck?: (id: string, e: React.MouseEvent) => void;
   onPause: (id: string) => void;
   onResume: (id: string) => void;
   onRetry: (id: string) => void;
@@ -25,18 +28,22 @@ interface DownloadRowProps {
   onReveal: (id: string) => void;
   onCancel: (id: string) => void;
   onDelete?: (id: string) => void;
+  onSetPriority?: (id: string, priority: number) => void;
   speedBytesPerSec?: number;
 }
 
 export const DownloadRow: React.FC<DownloadRowProps> = ({
   job,
   isSelected,
+  isChecked = false,
   onSelect,
+  onToggleCheck,
   onPause,
   onResume,
   onRetry,
   onOpen,
   onDelete,
+  onSetPriority,
   speedBytesPerSec = 0,
 }) => {
   const getFileIcon = (name: string) => {
@@ -169,106 +176,85 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
         );
       case "failed":
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-red-400">
             <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
             <span>Failed</span>
           </div>
         );
       case "needs_attention":
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-300">
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-amber-400">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            <span>Needs attention</span>
+            <span>Attention</span>
           </div>
         );
       default:
         return (
-          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-zinc-500" />
+          <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-[11px] text-zinc-500">
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-600" />
             <span className="capitalize">{job.status}</span>
           </div>
         );
     }
   };
 
-  // Render progress bar with segments / dashes
+  // Render multi-segment segmented bar or smooth progress
   const renderProgressBar = () => {
     if (job.status === "completed") {
       return (
         <div className="space-y-1">
-          <div className="h-1.5 w-full bg-zinc-800/80 rounded-full overflow-hidden">
+          <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
             <div className="h-full bg-emerald-400 rounded-full w-full" />
           </div>
-          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
-            <span>{job.total_bytes ? formatBytes(job.total_bytes) : formatBytes(job.downloaded_bytes)}</span>
+          <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+            <span>{formatBytes(job.downloaded_bytes)} of {formatBytes(job.total_bytes || job.downloaded_bytes)}</span>
             <span>100%</span>
           </div>
         </div>
       );
     }
 
-    if (job.status === "retrying") {
+    if (!job.total_bytes) {
       return (
         <div className="space-y-1">
-          <div className="h-1.5 w-full bg-zinc-800/80 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-amber-400 rounded-full animate-stripes"
-              style={{ width: `${progressPercent}%` }}
-            />
+          <div className="h-1.5 w-full bg-zinc-900 rounded-full overflow-hidden">
+            <div className="h-full bg-sky-400 rounded-full animate-pulse w-full" />
           </div>
-          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
-            <span>
-              {formatBytes(job.downloaded_bytes)}
-              {job.total_bytes ? ` of ${formatBytes(job.total_bytes)}` : ""}
-            </span>
-            <span>{progressPercent}%</span>
+          <div className="flex justify-between text-[10px] font-mono text-zinc-500">
+            <span>{formatBytes(job.downloaded_bytes)}</span>
+            <span>Streaming</span>
           </div>
         </div>
       );
     }
 
-    if (job.status === "failed") {
-      return (
-        <div className="space-y-1">
-          <div className="h-1.5 w-full bg-zinc-800/80 rounded-full overflow-hidden">
-            <div className="h-full bg-red-400/80 rounded-full" style={{ width: `${progressPercent}%` }} />
-          </div>
-          <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
-            <span>
-              {formatBytes(job.downloaded_bytes)}
-              {job.total_bytes ? ` of ${formatBytes(job.total_bytes)}` : ""}
-            </span>
-            <span>{progressPercent}%</span>
-          </div>
-        </div>
-      );
-    }
-
-    // Downloading, paused, or queued segmented block bar
     return (
       <div className="space-y-1">
-        <div className="flex items-center gap-1 w-full">
+        {/* Render discrete segment dash segments */}
+        <div className="flex items-center gap-1 h-1.5 w-full">
           {Array.from({ length: 8 }).map((_, i) => {
-            const threshold = (i + 1) * 12.5;
-            const isFilled = progressPercent >= threshold;
+            const blockWeight = 100 / 8;
+            const blockStart = i * blockWeight;
+            const blockEnd = (i + 1) * blockWeight;
+
+            let fillClass = "bg-zinc-800/80";
+            if (progressPercent >= blockEnd) {
+              fillClass = "bg-zinc-200";
+            } else if (progressPercent > blockStart) {
+              fillClass = "bg-zinc-400";
+            }
+
             return (
               <div
                 key={i}
-                className={`h-1.5 flex-1 rounded-sm transition-all ${
-                  isFilled
-                    ? "bg-white"
-                    : i === Math.floor(progressPercent / 12.5) && job.status === "downloading"
-                    ? "bg-zinc-600 animate-pulse"
-                    : "bg-zinc-800"
-                }`}
+                className={`flex-1 h-full rounded-sm transition-all duration-300 ${fillClass}`}
               />
             );
           })}
         </div>
-        <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500">
+        <div className="flex justify-between text-[10px] font-mono text-zinc-500">
           <span>
-            {formatBytes(job.downloaded_bytes)}
-            {job.total_bytes ? ` of ${formatBytes(job.total_bytes)}` : ""}
+            {formatBytes(job.downloaded_bytes)} of {formatBytes(job.total_bytes)}
           </span>
           <span>{progressPercent}%</span>
         </div>
@@ -276,52 +262,60 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
     );
   };
 
-  // Subtitle notes (domain, hash status, or errors)
   const renderSubtitle = () => {
-    if (job.last_error_message) {
-      return (
-        <span className="text-red-400/90 truncate block text-[11px] font-mono">
-          {getDomain(job.url)}, {job.last_error_message}
-        </span>
-      );
+    const domain = getDomain(job.url);
+    if (job.status === "failed" && job.last_error_message) {
+      return <div className="text-[11px] text-red-400/90 truncate">{job.last_error_message}</div>;
     }
-    if (job.status === "completed" && job.verification_status === "matched") {
-      return (
-        <span className="text-zinc-500 truncate block text-[11px]">
-          {getDomain(job.url)}, hash matches
-        </span>
-      );
-    }
-    if (job.status === "completed" && job.verification_status === "calculated") {
-      return (
-        <span className="text-zinc-500 truncate block text-[11px]">
-          {getDomain(job.url)}, hash calculated only
-        </span>
-      );
-    }
-    return (
-      <span className="text-zinc-500 truncate block text-[11px]">
-        {getDomain(job.url)}
-      </span>
-    );
+    return <div className="text-[11px] text-zinc-500 truncate">{domain}</div>;
   };
 
   return (
     <div
       onClick={() => onSelect(job)}
-      className={`px-4 py-3 rounded-xl border transition-all cursor-pointer flex items-center gap-4 text-xs select-none ${
+      className={`px-4 py-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3.5 text-xs select-none ${
         isSelected
           ? "bg-zinc-900/60 border-zinc-700/80 shadow-sm"
+          : isChecked
+          ? "bg-zinc-900/40 border-zinc-800"
           : "bg-zinc-950/40 hover:bg-zinc-900/40 border-zinc-900 hover:border-zinc-800/80"
       }`}
     >
+      {/* 0. Row Checkbox */}
+      <div
+        className="flex items-center justify-center shrink-0"
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggleCheck?.(job.id, e);
+        }}
+      >
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onChange={() => {}}
+          className="w-3.5 h-3.5 rounded border-zinc-700 bg-zinc-900 text-white accent-white cursor-pointer"
+        />
+      </div>
+
       {/* 1. Name & Domain */}
       <div className="flex items-center gap-3 min-w-0 flex-1">
         <div className="w-8 h-8 rounded-lg bg-zinc-900 border border-zinc-800 flex items-center justify-center shrink-0">
           {getFileIcon(job.file_name)}
         </div>
         <div className="min-w-0 space-y-0.5">
-          <div className="font-medium text-zinc-100 truncate text-xs">{job.file_name}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="font-medium text-zinc-100 truncate text-xs">{job.file_name}</span>
+            {job.priority > 0 && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold shrink-0">
+                HIGH
+              </span>
+            )}
+            {job.priority < 0 && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-zinc-800 text-zinc-400 border border-zinc-700/40 shrink-0">
+                LOW
+              </span>
+            )}
+          </div>
           {renderSubtitle()}
         </div>
       </div>
@@ -347,6 +341,20 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
         className="w-24 shrink-0 flex items-center justify-end gap-1.5"
         onClick={(e) => e.stopPropagation()}
       >
+        {job.status === "queued" && onSetPriority && (
+          <button
+            onClick={() => onSetPriority(job.id, job.priority > 0 ? 0 : 10)}
+            className={`p-1 rounded transition-colors ${
+              job.priority > 0
+                ? "text-amber-400 bg-amber-500/10"
+                : "text-zinc-500 hover:text-amber-400 hover:bg-zinc-800"
+            }`}
+            title={job.priority > 0 ? "High priority (click to reset)" : "Promote to High priority"}
+          >
+            <ArrowUp className="w-3.5 h-3.5" />
+          </button>
+        )}
+
         {job.status === "downloading" && (
           <button
             onClick={() => onPause(job.id)}

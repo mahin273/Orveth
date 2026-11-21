@@ -156,4 +156,37 @@ mod tests {
         assert_eq!(updated.total_bytes, Some(6_000_000_000));
         assert!(updated.segmented);
     }
+
+    #[tokio::test]
+    async fn test_job_update_priority_and_ordering() {
+        let tmp = tempdir().unwrap();
+        let db_path = tmp.path().join("priority_test.db");
+        let pool = init_db_pool(&db_path).await.unwrap();
+
+        let job1 = DownloadJob::new("https://example.com/low.zip", tmp.path(), None);
+        let job2 = DownloadJob::new("https://example.com/high.zip", tmp.path(), None);
+        let id1 = job1.id;
+        let id2 = job2.id;
+
+        JobRepository::insert(&pool, &job1).await.unwrap();
+        JobRepository::insert(&pool, &job2).await.unwrap();
+
+        // Update job2 priority to 10 (High) and job1 to -10 (Low)
+        JobRepository::update_priority(&pool, id2, 10)
+            .await
+            .unwrap();
+        JobRepository::update_priority(&pool, id1, -10)
+            .await
+            .unwrap();
+
+        let list = JobRepository::list(&pool, &Default::default())
+            .await
+            .unwrap();
+        assert_eq!(list.len(), 2);
+        // job2 should be first because priority is 10 > -10
+        assert_eq!(list[0].id, id2);
+        assert_eq!(list[0].priority, 10);
+        assert_eq!(list[1].id, id1);
+        assert_eq!(list[1].priority, -10);
+    }
 }

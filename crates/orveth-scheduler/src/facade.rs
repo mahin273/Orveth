@@ -88,6 +88,35 @@ impl OrvethEngine {
         Ok(job)
     }
 
+    pub async fn add_downloads_batch(
+        &self,
+        urls: Vec<String>,
+        destination_dir: Option<PathBuf>,
+    ) -> Result<Vec<DownloadJob>> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let dest_dir = destination_dir.unwrap_or(settings.default_destination);
+
+        let mut jobs = Vec::new();
+        for url in urls {
+            let trimmed = url.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            let job = DownloadJob::new(trimmed, &dest_dir, None);
+            if let Ok(()) = JobRepository::insert(&self.pool, &job).await {
+                jobs.push(job);
+            }
+        }
+        self.queue.pump_queue().await?;
+        Ok(jobs)
+    }
+
+    pub async fn set_job_priority(&self, id: Uuid, priority: i32) -> Result<()> {
+        JobRepository::update_priority(&self.pool, id, priority).await?;
+        self.queue.pump_queue().await?;
+        Ok(())
+    }
+
     pub async fn pause_download(&self, id: Uuid) -> Result<()> {
         self.queue.pause_job(id).await
     }

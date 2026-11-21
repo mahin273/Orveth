@@ -26,6 +26,34 @@ async fn add_download(
 }
 
 #[tauri::command]
+async fn add_downloads_batch(
+    state: State<'_, Arc<AppState>>,
+    urls: Vec<String>,
+    destination_dir: Option<String>,
+) -> Result<Vec<DownloadJob>, String> {
+    let dest_path = destination_dir.map(PathBuf::from);
+    state
+        .engine
+        .add_downloads_batch(urls, dest_path)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn set_job_priority(
+    state: State<'_, Arc<AppState>>,
+    id: String,
+    priority: i32,
+) -> Result<(), String> {
+    let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
+    state
+        .engine
+        .set_job_priority(uuid, priority)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn pause_download(state: State<'_, Arc<AppState>>, id: String) -> Result<(), String> {
     let uuid = Uuid::parse_str(&id).map_err(|e| e.to_string())?;
     state.engine.pause_download(uuid).await.map_err(|e| e.to_string())
@@ -187,6 +215,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             add_download,
+            add_downloads_batch,
+            set_job_priority,
             pause_download,
             resume_download,
             cancel_download,

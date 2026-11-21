@@ -322,6 +322,55 @@ export const App: React.FC = () => {
     await fetchJobs();
   };
 
+  const handleSetPriority = async (id: string, priority: number) => {
+    try {
+      await api.setJobPriority(id, priority);
+      await fetchJobs();
+    } catch (e) {
+      console.error("Failed to update priority:", e);
+    }
+  };
+
+  const handleBatchPause = async (ids: string[]) => {
+    for (const id of ids) {
+      await api.pauseDownload(id);
+    }
+    await fetchJobs();
+  };
+
+  const handleBatchResume = async (ids: string[]) => {
+    for (const id of ids) {
+      await api.resumeDownload(id);
+    }
+    await fetchJobs();
+  };
+
+  const handleBatchDelete = async (ids: string[]) => {
+    for (const id of ids) {
+      try {
+        await api.cancelDownload(id, true);
+      } catch {}
+      try {
+        await api.removeDownload(id, true);
+      } catch {}
+    }
+    if (selectedJob && ids.includes(selectedJob.id)) {
+      setSelectedJob(null);
+    }
+    await fetchJobs();
+  };
+
+  const handleBatchSetPriority = async (ids: string[], priority: number) => {
+    for (const id of ids) {
+      try {
+        await api.setJobPriority(id, priority);
+      } catch (e) {
+        console.error("Failed to set priority:", e);
+      }
+    }
+    await fetchJobs();
+  };
+
   const breadcrumb = useMemo(() => {
     if (selectedCategory) {
       const catMap: Record<string, string> = {
@@ -398,6 +447,11 @@ export const App: React.FC = () => {
             onFilterChange={setCurrentTab}
             counts={counts}
             speedsById={speedsById}
+            onSetPriority={handleSetPriority}
+            onBatchPause={handleBatchPause}
+            onBatchResume={handleBatchResume}
+            onBatchDelete={handleBatchDelete}
+            onBatchSetPriority={handleBatchSetPriority}
           />
         </div>
 
@@ -411,6 +465,7 @@ export const App: React.FC = () => {
             onDelete={handleDelete}
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
+            onSetPriority={handleSetPriority}
             speedBytesPerSec={speedsById[selectedJob.id] || 0}
             peakSpeedBytesPerSec={peakSpeedsById[selectedJob.id] || speedsById[selectedJob.id] || 0}
             speedHistory={speedHistory}
@@ -439,7 +494,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.1.7
+          Orveth 0.2.0
         </div>
       </footer>
 
@@ -450,6 +505,10 @@ export const App: React.FC = () => {
         defaultDestination={settings.default_destination}
         onAdd={async (url, dest, filename, hash) => {
           await api.addDownload(url, dest, filename, hash);
+          await fetchJobs();
+        }}
+        onAddBatch={async (urls, dest) => {
+          await api.addDownloadsBatch(urls, dest);
           await fetchJobs();
         }}
       />
