@@ -1,5 +1,6 @@
 import React from "react";
-import { ArrowDownCircle, Clock, CheckCircle2 } from "lucide-react";
+import { ArrowDown, Clock, CheckCircle2, Activity } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 interface OverviewCardsProps {
   activeCount: number;
@@ -19,52 +20,76 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
     }
     if (bytes >= 1024) {
-      return `${(bytes / 1024).toFixed(1)} KB/s`;
+      return `${(bytes / 1024).toFixed(0)} KB/s`;
     }
     return `${bytes} B/s`;
   };
 
   return (
-    <div className="grid grid-cols-4 gap-4 p-6 pb-2">
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
-          <ArrowDownCircle className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Active</div>
-          <div className="text-xl font-bold text-slate-100">{activeCount}</div>
-        </div>
-      </div>
+    <div className="grid grid-cols-4 gap-3 px-6 pt-5 pb-1">
+      <Card className="bg-card border-border/80 hover:border-zinc-700 transition-colors">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Active Jobs
+            </span>
+            <div className="text-xl font-bold font-mono tracking-tight text-foreground">
+              {activeCount}
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-foreground">
+            <ArrowDown className="w-4 h-4" />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center shrink-0">
-          <Clock className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Queued</div>
-          <div className="text-xl font-bold text-slate-100">{queuedCount}</div>
-        </div>
-      </div>
+      <Card className="bg-card border-border/80 hover:border-zinc-700 transition-colors">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              In Queue
+            </span>
+            <div className="text-xl font-bold font-mono tracking-tight text-foreground">
+              {queuedCount}
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-amber-400">
+            <Clock className="w-4 h-4" />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
-          <CheckCircle2 className="w-5 h-5" />
-        </div>
-        <div>
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Completed</div>
-          <div className="text-xl font-bold text-slate-100">{completedCount}</div>
-        </div>
-      </div>
+      <Card className="bg-card border-border/80 hover:border-zinc-700 transition-colors">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Finished
+            </span>
+            <div className="text-xl font-bold font-mono tracking-tight text-foreground">
+              {completedCount}
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-emerald-400">
+            <CheckCircle2 className="w-4 h-4" />
+          </div>
+        </CardContent>
+      </Card>
 
-      <div className="bg-slate-900/40 border border-slate-800/80 rounded-xl p-4 flex items-center gap-4">
-        <div className="w-10 h-10 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center shrink-0">
-          <ArrowDownCircle className="w-5 h-5 animate-pulse" />
-        </div>
-        <div>
-          <div className="text-xs font-medium text-slate-400 uppercase tracking-wider">Download Speed</div>
-          <div className="text-xl font-bold text-slate-100">{formatSpeed(totalSpeedBytesPerSec)}</div>
-        </div>
-      </div>
+      <Card className="bg-card border-border/80 hover:border-zinc-700 transition-colors">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Throughput
+            </span>
+            <div className="text-xl font-bold font-mono tracking-tight text-foreground">
+              {formatSpeed(totalSpeedBytesPerSec)}
+            </div>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-secondary flex items-center justify-center text-zinc-400">
+            <Activity className={`w-4 h-4 ${totalSpeedBytesPerSec > 0 ? "text-emerald-400 animate-pulse" : ""}`} />
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };
