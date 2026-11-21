@@ -131,4 +131,28 @@ mod tests {
         // Even if not installed on host, it gracefully returns YtDlpStatus without panicking
         assert!(!status.available || status.path.is_some());
     }
+
+    #[tokio::test]
+    async fn test_engine_torrent_and_magnet_inspection() {
+        let tmp = tempdir().unwrap();
+        let db_path = tmp.path().join("torrent_test.db");
+        let temp_dir = tmp.path().join("temp");
+
+        let engine = OrvethEngine::init(&db_path, &temp_dir).await.unwrap();
+
+        let magnet = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=Arch+Linux+Latest&tr=udp%3A%2F%2Ftracker.example.com%3A1337";
+        let magnet_meta = engine.inspect_magnet(magnet).unwrap();
+        assert_eq!(magnet_meta.name, "Arch Linux Latest");
+        assert_eq!(
+            magnet_meta.info_hash,
+            "0123456789abcdef0123456789abcdef01234567"
+        );
+        assert!(magnet_meta.is_magnet);
+
+        let torrent_bytes = b"d8:announce26:http://tracker.example.com4:infod6:lengthi1048576e4:name8:test.iso12:piece lengthi262144e6:pieces80:11111111111111111111222222222222222222223333333333333333333344444444444444444444ee";
+        let torrent_meta = engine.inspect_torrent(torrent_bytes).unwrap();
+        assert_eq!(torrent_meta.name, "test.iso");
+        assert_eq!(torrent_meta.total_length, 1048576);
+        assert!(!torrent_meta.is_magnet);
+    }
 }

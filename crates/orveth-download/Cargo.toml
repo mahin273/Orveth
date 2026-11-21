@@ -18,6 +18,8 @@ uuid.workspace = true
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha1.workspace = true
+hex.workspace = true
 fastrand = "2.3"
 
 [dev-dependencies]

@@ -4,6 +4,7 @@ pub mod retry;
 pub mod segment_planner;
 pub mod segment_worker;
 pub mod single_stream;
+pub mod torrent;
 
 pub use capability::{CapabilityDetector, ServerCapabilities};
 pub use media::MediaExtractor;
@@ -11,6 +12,7 @@ pub use retry::RetryPolicy;
 pub use segment_planner::SegmentPlanner;
 pub use segment_worker::SegmentWorker;
 pub use single_stream::SingleStreamWorker;
+pub use torrent::{AnnounceParams, TorrentParser, TrackerClient, TrackerResponse};
 
 #[cfg(test)]
 mod tests {

@@ -66,6 +66,9 @@ pub enum OrvethError {
     #[error("Media extraction error: {0}")]
     Media(String),
 
+    #[error("Torrent protocol error: {0}")]
+    Torrent(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }

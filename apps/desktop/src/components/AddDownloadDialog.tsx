@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   ArrowRight,
+  Magnet,
 } from "lucide-react";
 import {
   Dialog,
@@ -27,7 +28,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { api, MediaInspectionResult, MediaFormatInfo, YtDlpStatus } from "@/api";
+import {
+  api,
+  MediaInspectionResult,
+  MediaFormatInfo,
+  YtDlpStatus,
+  TorrentMetadata,
+} from "@/api";
 
 interface AddDownloadDialogProps {
   isOpen: boolean;
@@ -105,7 +112,7 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
   onAddBatch,
   defaultDestination,
 }) => {
-  const [mode, setMode] = useState<"single" | "batch" | "media">("single");
+  const [mode, setMode] = useState<"single" | "batch" | "media" | "torrent">("single");
 
   // Single mode state
   const [url, setUrl] = useState("");
@@ -128,6 +135,13 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
   const [selectedFormat, setSelectedFormat] = useState<MediaFormatInfo | null>(null);
   const [mediaFormatType, setMediaFormatType] = useState<"video" | "audio">("video");
   const [mediaDestination, setMediaDestination] = useState(defaultDestination);
+
+  // Torrent mode state
+  const [torrentInput, setTorrentInput] = useState("");
+  const [torrentMeta, setTorrentMeta] = useState<TorrentMetadata | null>(null);
+  const [isInspectingTorrent, setIsInspectingTorrent] = useState(false);
+  const [torrentDestination, setTorrentDestination] = useState(defaultDestination);
+  const torrentFileInputRef = useRef<HTMLInputElement>(null);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +168,11 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
       l.includes("x.com") ||
       l.includes("reddit.com")
     );
+  }, [url]);
+
+  const isTorrentLikely = useMemo(() => {
+    const l = url.toLowerCase().trim();
+    return l.startsWith("magnet:?xt=") || l.endsWith(".torrent");
   }, [url]);
 
   const detectedBatchUrls = useMemo(() => {
@@ -237,6 +256,79 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
     }
   };
 
+  const handleInspectTorrentMagnet = async (rawUri?: string) => {
+    const target = (rawUri || torrentInput).trim();
+    if (!target) {
+      setError("Please provide a magnet link or .torrent URL.");
+      return;
+    }
+    setError(null);
+    setIsInspectingTorrent(true);
+    setTorrentMeta(null);
+
+    try {
+      if (target.startsWith("magnet:")) {
+        const meta = await api.inspectMagnet(target);
+        setTorrentMeta(meta);
+      } else {
+        const resp = await fetch(target);
+        const buf = await resp.arrayBuffer();
+        const meta = await api.inspectTorrent(Array.from(new Uint8Array(buf)));
+        setTorrentMeta(meta);
+      }
+    } catch (err: any) {
+      setError(`Failed to inspect torrent: ${err?.toString() || "Unknown error"}`);
+    } finally {
+      setIsInspectingTorrent(false);
+    }
+  };
+
+  const handleTorrentFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setError(null);
+    setIsInspectingTorrent(true);
+    setTorrentMeta(null);
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = Array.from(new Uint8Array(arrayBuffer));
+      const meta = await api.inspectTorrent(bytes);
+      setTorrentMeta(meta);
+      if (!torrentInput) {
+        setTorrentInput(file.name);
+      }
+    } catch (err: any) {
+      setError(`Failed to parse .torrent file: ${err?.toString() || "Unknown error"}`);
+    } finally {
+      setIsInspectingTorrent(false);
+      if (torrentFileInputRef.current) {
+        torrentFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleDownloadTorrent = async () => {
+    if (!torrentMeta) {
+      setError("Please inspect a torrent or magnet link first.");
+      return;
+    }
+    setLoading(true);
+    setError(null);
+
+    try {
+      const source = torrentInput.trim() || torrentMeta.name;
+      await onAdd(source, torrentDestination.trim() || undefined, torrentMeta.name);
+      setTorrentMeta(null);
+      setTorrentInput("");
+      onClose();
+    } catch (err: any) {
+      setError(err?.toString() || "Failed to add torrent download");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -259,6 +351,11 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
 
     if (mode === "media") {
       await handleDownloadMedia();
+      return;
+    }
+
+    if (mode === "torrent") {
+      await handleDownloadTorrent();
       return;
     }
 
@@ -363,6 +460,23 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
                 <Film className="w-3 h-3 text-purple-400" />
                 <span>Video / Media</span>
               </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode("torrent");
+                  if (url && !torrentInput) {
+                    setTorrentInput(url);
+                  }
+                }}
+                className={`px-2 py-1 rounded-md text-[11px] font-medium transition-all flex items-center gap-1 ${
+                  mode === "torrent"
+                    ? "bg-zinc-800 text-white"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <Magnet className="w-3 h-3 text-cyan-400" />
+                <span>BitTorrent</span>
+              </button>
             </div>
           </div>
           <DialogDescription className="text-xs text-muted-foreground">
@@ -370,7 +484,9 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
               ? "Queue a single direct HTTP or HTTPS download."
               : mode === "batch"
               ? "Paste multiple URLs or use patterns like [01-10] to queue in bulk."
-              : "Inspect and download video/audio streams from web platforms."}
+              : mode === "media"
+              ? "Inspect and download video/audio streams from web platforms."
+              : "Inspect and queue BitTorrent files (.torrent) or Magnet links."}
           </DialogDescription>
         </DialogHeader>
 
@@ -417,6 +533,27 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
                       className="px-2 py-0.5 rounded bg-purple-600 hover:bg-purple-500 text-white font-medium text-[10px] flex items-center gap-1 transition-colors"
                     >
                       <span>Inspect with yt-dlp</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                )}
+
+                {isTorrentLikely && (
+                  <div className="flex items-center justify-between p-2 rounded bg-cyan-500/10 border border-cyan-500/20 text-xs text-cyan-300">
+                    <span className="flex items-center gap-1.5">
+                      <Magnet className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>BitTorrent / Magnet link detected</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTorrentInput(url);
+                        setMode("torrent");
+                        handleInspectTorrentMagnet(url);
+                      }}
+                      className="px-2 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-white font-medium text-[10px] flex items-center gap-1 transition-colors"
+                    >
+                      <span>Inspect in BitTorrent</span>
                       <ArrowRight className="w-3 h-3" />
                     </button>
                   </div>
@@ -786,6 +923,154 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
             </div>
           )}
 
+          {mode === "torrent" && (
+            <div className="space-y-4">
+              {/* Magnet input or .torrent URL */}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="torrentInput"
+                  className="text-xs flex items-center gap-1.5 text-muted-foreground"
+                >
+                  <Magnet className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Magnet URI or .torrent URL</span>
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="torrentInput"
+                    type="text"
+                    value={torrentInput}
+                    onChange={(e) => setTorrentInput(e.target.value)}
+                    placeholder="magnet:?xt=urn:btih:..."
+                    className="bg-secondary/40 border-border/80 text-xs font-mono flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={isInspectingTorrent || !torrentInput.trim()}
+                    onClick={() => handleInspectTorrentMagnet()}
+                    className="text-xs bg-cyan-600 hover:bg-cyan-500 text-white shrink-0"
+                  >
+                    {isInspectingTorrent ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      "Inspect"
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Or .torrent file drop / upload */}
+              <div
+                onClick={() => torrentFileInputRef.current?.click()}
+                className="border border-dashed border-zinc-800 hover:border-cyan-500/50 bg-zinc-950/60 hover:bg-zinc-900/50 rounded-lg p-3 text-center cursor-pointer transition-all"
+              >
+                <Upload className="w-4 h-4 mx-auto mb-1 text-cyan-400" />
+                <div className="text-xs text-zinc-300 font-medium">
+                  Click to select or upload a local .torrent file
+                </div>
+                <div className="text-[10px] text-zinc-500 mt-0.5">
+                  Bencoded metadata is parsed instantly in pure Rust
+                </div>
+                <input
+                  type="file"
+                  ref={torrentFileInputRef}
+                  accept=".torrent"
+                  className="hidden"
+                  onChange={handleTorrentFileUpload}
+                />
+              </div>
+
+              {/* Inspected Torrent Card */}
+              {torrentMeta && (
+                <div className="p-3 rounded-lg border border-cyan-500/30 bg-cyan-950/10 space-y-3">
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="font-semibold text-xs text-white truncate">
+                        {torrentMeta.name}
+                      </div>
+                      <span className="text-[10px] uppercase font-mono px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shrink-0">
+                        {torrentMeta.is_magnet ? "Magnet Link" : ".torrent"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 font-mono text-[10px] text-zinc-400 break-all">
+                      <span className="text-zinc-500">Hash:</span>
+                      <span className="text-cyan-300 select-all">{torrentMeta.info_hash}</span>
+                    </div>
+                  </div>
+
+                  {/* Torrent Stats Grid */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                    <div className="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+                      <div className="text-zinc-500 text-[10px]">Total Size</div>
+                      <div className="font-mono text-white font-medium">
+                        {formatBytes(torrentMeta.total_length)}
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+                      <div className="text-zinc-500 text-[10px]">Pieces</div>
+                      <div className="font-mono text-white font-medium">
+                        {torrentMeta.piece_count > 0 ? torrentMeta.piece_count : "Unknown"}
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+                      <div className="text-zinc-500 text-[10px]">Piece Length</div>
+                      <div className="font-mono text-white font-medium">
+                        {torrentMeta.piece_length > 0 ? formatBytes(torrentMeta.piece_length) : "N/A"}
+                      </div>
+                    </div>
+                    <div className="bg-zinc-900/80 p-2 rounded border border-zinc-800">
+                      <div className="text-zinc-500 text-[10px]">Trackers</div>
+                      <div className="font-mono text-white font-medium">
+                        {torrentMeta.announce_urls.length}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* File List Preview */}
+                  {torrentMeta.files.length > 0 && (
+                    <div className="space-y-1.5">
+                      <div className="text-[11px] text-zinc-400 font-medium flex items-center justify-between">
+                        <span>Included Files ({torrentMeta.files.length})</span>
+                      </div>
+                      <div className="max-h-36 overflow-y-auto space-y-1 p-2 rounded bg-zinc-950 border border-zinc-800">
+                        {torrentMeta.files.map((file, idx) => (
+                          <div
+                            key={idx}
+                            className="flex items-center justify-between text-[11px] font-mono text-zinc-300 py-0.5 border-b border-zinc-900/50 last:border-0"
+                          >
+                            <span className="truncate pr-2">{file.path}</span>
+                            <span className="text-zinc-500 shrink-0">
+                              {file.length > 0 ? formatBytes(file.length) : ""}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Destination */}
+                  <div className="space-y-1.5 pt-1">
+                    <Label
+                      htmlFor="torrentDestination"
+                      className="text-xs flex items-center gap-1.5 text-muted-foreground"
+                    >
+                      <Folder className="w-3 h-3 text-foreground" />
+                      <span>Destination Directory</span>
+                    </Label>
+                    <Input
+                      id="torrentDestination"
+                      type="text"
+                      value={torrentDestination}
+                      onChange={(e) => setTorrentDestination(e.target.value)}
+                      className="bg-secondary/40 border-border/80 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <DialogFooter className="pt-2">
             <Button
               type="button"
@@ -802,11 +1087,14 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
               disabled={
                 loading ||
                 (mode === "batch" && detectedBatchUrls.length === 0) ||
-                (mode === "media" && (!mediaResult || !selectedFormat))
+                (mode === "media" && (!mediaResult || !selectedFormat)) ||
+                (mode === "torrent" && !torrentMeta)
               }
               className={`text-xs ${
                 mode === "media"
                   ? "bg-purple-600 text-white hover:bg-purple-500"
+                  : mode === "torrent"
+                  ? "bg-cyan-600 text-white hover:bg-cyan-500"
                   : "bg-white text-black hover:bg-zinc-200"
               }`}
             >
@@ -819,8 +1107,10 @@ export const AddDownloadDialog: React.FC<AddDownloadDialogProps> = ({
                 "Start Download"
               ) : mode === "batch" ? (
                 `Queue ${detectedBatchUrls.length} Downloads`
-              ) : (
+              ) : mode === "media" ? (
                 "Download Selected Stream"
+              ) : (
+                "Queue Torrent Download"
               )}
             </Button>
           </DialogFooter>

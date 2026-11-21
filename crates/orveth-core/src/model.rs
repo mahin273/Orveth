@@ -257,6 +257,24 @@ pub struct BridgeStatus {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentFileInfo {
+    pub path: String,
+    pub length: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentMetadata {
+    pub name: String,
+    pub info_hash: String,
+    pub total_length: u64,
+    pub piece_length: u64,
+    pub piece_count: usize,
+    pub files: Vec<TorrentFileInfo>,
+    pub announce_urls: Vec<String>,
+    pub is_magnet: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct YtDlpStatus {
     pub available: bool,
     pub path: Option<String>,

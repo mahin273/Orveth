@@ -111,6 +111,22 @@ export interface MediaInspectionResult {
   formats: MediaFormatInfo[];
 }
 
+export interface TorrentFileInfo {
+  path: string;
+  length: number;
+}
+
+export interface TorrentMetadata {
+  name: string;
+  info_hash: string;
+  total_length: number;
+  piece_length: number;
+  piece_count: number;
+  files: TorrentFileInfo[];
+  announce_urls: string[];
+  is_magnet: boolean;
+}
+
 export interface DownloadFilter {
   status?: DownloadStatus;
   category?: string;
@@ -217,6 +233,14 @@ export const api = {
 
   async installNativeManifests(): Promise<string[]> {
     return invoke("install_native_manifests");
+  },
+
+  async inspectTorrent(bytes: number[]): Promise<TorrentMetadata> {
+    return invoke("inspect_torrent", { bytes });
+  },
+
+  async inspectMagnet(uri: string): Promise<TorrentMetadata> {
+    return invoke("inspect_magnet", { uri });
   },
 
   async onEngineEvent(cb: (event: any) => void): Promise<UnlistenFn> {

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Orveth Download Manager",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Send downloads and media streams directly to Orveth Accelerated Download Manager.",
   "permissions": [
     "contextMenus",
