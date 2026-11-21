@@ -13,6 +13,8 @@ import {
   MoreHorizontal,
   Trash2,
   ArrowUp,
+  Magnet,
+  Film,
 } from "lucide-react";
 
 interface DownloadRowProps {
@@ -46,7 +48,16 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
   onSetPriority,
   speedBytesPerSec = 0,
 }) => {
+  const isTorrent = job.url.startsWith("magnet:") || /\.torrent$/i.test(job.file_name) || job.category === "torrent";
+  const isMedia = job.category === "media" || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|aac|opus)$/i.test(job.file_name);
+
   const getFileIcon = (name: string) => {
+    if (isTorrent) {
+      return <Magnet className="w-3.5 h-3.5 text-cyan-400" />;
+    }
+    if (isMedia) {
+      return <Film className="w-3.5 h-3.5 text-purple-400" />;
+    }
     const ext = name.split(".").pop()?.toLowerCase();
     switch (ext) {
       case "iso":
@@ -305,6 +316,18 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
         <div className="min-w-0 space-y-0.5">
           <div className="flex items-center gap-1.5">
             <span className="font-medium text-zinc-100 truncate text-xs">{job.file_name}</span>
+            {isTorrent && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-cyan-950/70 text-cyan-300 border border-cyan-800/60 font-semibold shrink-0 uppercase flex items-center gap-1">
+                <Magnet className="w-2.5 h-2.5" />
+                <span>Torrent</span>
+              </span>
+            )}
+            {isMedia && !isTorrent && (
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-purple-950/70 text-purple-300 border border-purple-800/60 font-semibold shrink-0 uppercase flex items-center gap-1">
+                <Film className="w-2.5 h-2.5" />
+                <span>Media</span>
+              </span>
+            )}
             {job.priority > 0 && (
               <span className="px-1.5 py-0.2 rounded text-[9px] font-mono bg-amber-500/10 text-amber-400 border border-amber-500/30 font-semibold shrink-0">
                 HIGH

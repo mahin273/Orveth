@@ -28,7 +28,13 @@ export const App: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedJob, setSelectedJob] = useState<DownloadJob | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [addModalMode, setAddModalMode] = useState<"single" | "batch" | "media" | "torrent">("single");
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+
+  const handleOpenAddModal = (mode: "single" | "batch" | "media" | "torrent" = "single") => {
+    setAddModalMode(mode);
+    setIsAddModalOpen(true);
+  };
 
   // Live speed tracking
   const [speedsById, setSpeedsById] = useState<Record<string, number>>({});
@@ -200,6 +206,8 @@ export const App: React.FC = () => {
     const isCode = (n: string) => /\.(tar\.[a-z0-9]+|zip|gz|xz|zst|rs|py|c|cpp|js|ts)$/i.test(n);
     const isApp = (n: string) => /\.(appimage|deb|rpm|exe|flatpakref)$/i.test(n);
     const isData = (n: string) => /\.(csv|parquet|zst|bin|dat|sqlite|json)$/i.test(n);
+    const isTorrent = (j: DownloadJob) => j.url.startsWith("magnet:") || /\.torrent$/i.test(j.file_name) || j.category === "torrent";
+    const isMedia = (j: DownloadJob) => j.category === "media" || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|aac|opus)$/i.test(j.file_name);
 
     return {
       all: jobs.length,
@@ -211,6 +219,8 @@ export const App: React.FC = () => {
       queued: jobs.filter((j) => j.status === "queued").length,
       completed: jobs.filter((j) => j.status === "completed").length,
       failed: jobs.filter((j) => j.status === "failed" || j.status === "needs_attention").length,
+      torrents: jobs.filter(isTorrent).length,
+      media: jobs.filter(isMedia).length,
       diskImages: jobs.filter((j) => isDisk(j.file_name)).length,
       sourceCode: jobs.filter((j) => isCode(j.file_name)).length,
       applications: jobs.filter((j) => isApp(j.file_name)).length,
@@ -237,6 +247,14 @@ export const App: React.FC = () => {
   const filteredJobs = useMemo(() => {
     return jobs.filter((job) => {
       // Category filter
+      if (selectedCategory === "torrents") {
+        const isTorrent = job.url.startsWith("magnet:") || /\.torrent$/i.test(job.file_name) || job.category === "torrent";
+        if (!isTorrent) return false;
+      }
+      if (selectedCategory === "media") {
+        const isMedia = job.category === "media" || /\.(mp4|mkv|webm|avi|mov|mp3|m4a|flac|wav|aac|opus)$/i.test(job.file_name);
+        if (!isMedia) return false;
+      }
       if (selectedCategory === "disk" && !/\.(iso|img)$/i.test(job.file_name)) return false;
       if (selectedCategory === "code" && !/\.(tar\.[a-z0-9]+|zip|gz|xz|zst|rs|py|c|cpp|js|ts)$/i.test(job.file_name)) return false;
       if (selectedCategory === "apps" && !/\.(appimage|deb|rpm|exe|flatpakref)$/i.test(job.file_name)) return false;
@@ -374,6 +392,8 @@ export const App: React.FC = () => {
   const breadcrumb = useMemo(() => {
     if (selectedCategory) {
       const catMap: Record<string, string> = {
+        torrents: "BitTorrent",
+        media: "Media streams",
         disk: "Disk images",
         code: "Source code",
         apps: "Applications",
@@ -405,6 +425,9 @@ export const App: React.FC = () => {
           defaultDestination={settings.default_destination}
           counts={counts}
           onOpenSettings={() => setIsSettingsModalOpen(true)}
+          onOpenAddModal={handleOpenAddModal}
+          proxyUrl={settings.proxy_url}
+          bridgeEnabled={settings.bridge_enabled}
         />
 
         {/* 2. Middle Main Panel */}
@@ -413,7 +436,7 @@ export const App: React.FC = () => {
             breadcrumb={breadcrumb}
             searchQuery={searchQuery}
             onSearchChange={setSearchQuery}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
+            onOpenAddModal={handleOpenAddModal}
             isAllPaused={isAllPaused}
             onTogglePauseAll={handleTogglePauseAll}
           />
@@ -442,7 +465,7 @@ export const App: React.FC = () => {
             onDelete={handleDelete}
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
+            onOpenAddModal={handleOpenAddModal}
             activeFilter={currentTab}
             onFilterChange={setCurrentTab}
             counts={counts}
@@ -513,6 +536,7 @@ export const App: React.FC = () => {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         defaultDestination={settings.default_destination}
+        initialMode={addModalMode}
         onAdd={async (url, dest, filename, hash) => {
           await api.addDownload(url, dest, filename, hash);
           await fetchJobs();
