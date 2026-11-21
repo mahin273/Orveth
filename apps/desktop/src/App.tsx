@@ -7,7 +7,6 @@ import { DownloadList } from "./components/DownloadList";
 import { AddDownloadDialog } from "./components/AddDownloadDialog";
 import { JobDetailDrawer } from "./components/JobDetailDrawer";
 import { SettingsModal } from "./components/SettingsModal";
-import { Minus, Square, X } from "lucide-react";
 
 export const App: React.FC = () => {
   const [jobs, setJobs] = useState<DownloadJob[]>([]);
@@ -256,23 +255,6 @@ export const App: React.FC = () => {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-foreground overflow-hidden font-sans select-none antialiased">
-      {/* Linux Window Titlebar */}
-      <div className="h-8 bg-black px-4 flex items-center justify-between border-b border-zinc-900/60 shrink-0">
-        <div className="w-16" />
-        <div className="text-xs text-zinc-500 font-medium tracking-tight">Orveth</div>
-        <div className="flex items-center gap-3 text-zinc-500">
-          <button className="hover:text-zinc-300 transition-colors">
-            <Minus className="w-3.5 h-3.5" />
-          </button>
-          <button className="hover:text-zinc-300 transition-colors">
-            <Square className="w-3 h-3" />
-          </button>
-          <button className="hover:text-zinc-300 transition-colors">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
-
       {/* 3-Column Workspace Layout */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* 1. Left Sidebar */}
@@ -363,7 +345,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.1.1
+          Orveth 0.1.2
         </div>
       </footer>
 
