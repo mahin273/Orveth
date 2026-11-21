@@ -204,6 +204,8 @@ pub struct EngineSettings {
     pub notification_enabled: bool,
     #[serde(default)]
     pub proxy_url: Option<String>,
+    #[serde(default)]
+    pub ytdlp_path: Option<String>,
 }
 
 impl Default for EngineSettings {
@@ -224,8 +226,40 @@ impl Default for EngineSettings {
             clipboard_monitoring_enabled: false,
             notification_enabled: true,
             proxy_url: None,
+            ytdlp_path: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct YtDlpStatus {
+    pub available: bool,
+    pub path: Option<String>,
+    pub version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaFormatInfo {
+    pub format_id: String,
+    pub ext: String,
+    pub resolution: Option<String>,
+    pub note: Option<String>,
+    pub filesize_approx: Option<u64>,
+    pub vcodec: Option<String>,
+    pub acodec: Option<String>,
+    pub is_video: bool,
+    pub is_audio: bool,
+    pub direct_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaInspectionResult {
+    pub url: String,
+    pub title: String,
+    pub uploader: Option<String>,
+    pub duration_seconds: Option<u64>,
+    pub thumbnail_url: Option<String>,
+    pub formats: Vec<MediaFormatInfo>,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

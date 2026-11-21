@@ -63,6 +63,9 @@ pub enum OrvethError {
     #[error("Operation canceled")]
     Canceled,
 
+    #[error("Media extraction error: {0}")]
+    Media(String),
+
     #[error("Internal error: {0}")]
     Internal(String),
 }
