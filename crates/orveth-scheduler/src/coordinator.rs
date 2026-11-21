@@ -130,6 +130,7 @@ impl DownloadCoordinator {
 
         let reporter_handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(std::time::Duration::from_millis(500));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
             interval.tick().await;
 
             let mut last_bytes = progress_counter.load(Ordering::Relaxed);
@@ -185,13 +186,16 @@ impl DownloadCoordinator {
                 db_tick += 1;
 
                 if db_tick.is_multiple_of(2) {
-                    let _ = JobRepository::update_progress(
-                        &progress_pool,
-                        progress_job_id,
-                        current_bytes,
-                        total_expected,
-                    )
-                    .await;
+                    let pool_cl = progress_pool.clone();
+                    tokio::spawn(async move {
+                        let _ = JobRepository::update_progress(
+                            &pool_cl,
+                            progress_job_id,
+                            current_bytes,
+                            total_expected,
+                        )
+                        .await;
+                    });
                 }
             }
         });
@@ -347,8 +351,6 @@ impl DownloadCoordinator {
                 let seg_received_cl = seg_received.clone();
                 let seg_event_sender = event_sender.clone();
                 let mut bytes_since_last_seg_event = 0u64;
-                let mut bytes_since_last_db_flush = 0u64;
-                let pool_cl = pool.clone();
 
                 let res = SegmentWorker::download(&client, &url, &mut seg, cancel, move |delta| {
                     dl_counter.fetch_add(delta, Ordering::Relaxed);
@@ -362,20 +364,6 @@ impl DownloadCoordinator {
                             status: SegmentStatus::Downloading,
                             received_bytes: current,
                             expected_bytes: seg_expected,
-                        });
-                    }
-                    bytes_since_last_db_flush += delta;
-                    if bytes_since_last_db_flush >= 1024 * 1024 {
-                        bytes_since_last_db_flush = 0;
-                        let p = pool_cl.clone();
-                        tokio::spawn(async move {
-                            let _ = SegmentRepository::update_progress(
-                                &p,
-                                seg_id,
-                                current,
-                                SegmentStatus::Downloading,
-                            )
-                            .await;
                         });
                     }
                 })

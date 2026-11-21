@@ -34,6 +34,7 @@ export const App: React.FC = () => {
   const [speedsById, setSpeedsById] = useState<Record<string, number>>({});
   const [peakSpeedsById, setPeakSpeedsById] = useState<Record<string, number>>({});
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
+  const lastSpeedEventTimeRef = React.useRef<Record<string, number>>({});
 
   const prevBytesRef = React.useRef<{ time: number; bytesById: Record<string, number> }>({
     time: Date.now(),
@@ -54,14 +55,18 @@ export const App: React.FC = () => {
         const deltaBytes = Math.max(0, job.downloaded_bytes - prevBytes);
         const polledSpeed = Math.round(deltaBytes / elapsedSec);
         if (["downloading", "retrying"].includes(job.status)) {
+          const lastEventTime = lastSpeedEventTimeRef.current[job.id] || 0;
+          const isEventFresh = now - lastEventTime < 2000;
           setSpeedsById((prevSpeeds) => {
             const currentSpeed = prevSpeeds[job.id] || 0;
-            return { ...prevSpeeds, [job.id]: currentSpeed > 0 ? currentSpeed : polledSpeed };
+            const effectiveSpeed = isEventFresh && currentSpeed > 0 ? currentSpeed : polledSpeed;
+            return { ...prevSpeeds, [job.id]: effectiveSpeed };
           });
-          if (polledSpeed > 0) {
+          const maxSpeed = Math.max(polledSpeed, isEventFresh ? (speedsById[job.id] || 0) : 0);
+          if (maxSpeed > 0) {
             setPeakSpeedsById((prev) => ({
               ...prev,
-              [job.id]: Math.max(prev[job.id] || 0, polledSpeed),
+              [job.id]: Math.max(prev[job.id] || 0, maxSpeed),
             }));
           }
         } else {
@@ -119,6 +124,7 @@ export const App: React.FC = () => {
           );
         } else if (type === "download_speed") {
           const speed = payload.bytes_per_sec;
+          lastSpeedEventTimeRef.current[payload.download_id] = Date.now();
           setSpeedsById((prev) => ({
             ...prev,
             [payload.download_id]: speed,
@@ -433,7 +439,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.1.6
+          Orveth 0.1.7
         </div>
       </footer>
 
