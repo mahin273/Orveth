@@ -98,6 +98,66 @@ Detailed store publishing guidelines and privacy documentation:
 
 ## Architecture
 
+### System Architecture Diagram
+
+```mermaid
+flowchart TD
+    subgraph ClientLayer["Client & Integration Layer"]
+        UI["React 18 Desktop UI<br/>(Tailwind CSS + Radix UI)"]
+        Browser["Browser Extension (MV3)<br/>(Chrome / Brave / Firefox / Edge)"]
+    end
+
+    subgraph ShellLayer["Application Shell (Tauri v2)"]
+        IPC["Tauri IPC Commands & Event Bus"]
+        Bridge["Loopback REST API Server<br/>(127.0.0.1:41527)"]
+    end
+
+    subgraph CoreLayer["Engine Orchestration (orveth-scheduler & orveth-core)"]
+        Facade["Engine Facade & State Machine"]
+        Queue["Concurrent Priority Queue"]
+        Limiter["Token-Bucket Rate Limiter"]
+    end
+
+    subgraph WorkerLayer["Protocol & Transfer Workers (orveth-download)"]
+        HTTPWorker["Multi-Segment HTTP/S Workers<br/>(Adaptive 1-16 Slices)"]
+        TorrentWorker["BitTorrent BEP 3 Engine<br/>(Magnet & Compact Trackers)"]
+        MediaWorker["yt-dlp Stream Extractor<br/>(Video / Audio Formats)"]
+        ProxyRouter["Proxy & Tor SOCKS5 Router"]
+    end
+
+    subgraph StorageLayer["Storage, Persistence & Integrity"]
+        Storage["Chunk Allocator & Writer<br/>(orveth-storage)"]
+        DB[("SQLite WAL Database<br/>(orveth-persistence)")]
+        Hasher["Streaming SHA-256 Hasher<br/>(orveth-integrity)"]
+    end
+
+    UI -->|Tauri IPC| IPC
+    Browser -->|HTTP REST + Bearer Token| Bridge
+    IPC --> Facade
+    Bridge --> Facade
+
+    Facade --> Queue
+    Queue --> Limiter
+
+    Limiter --> HTTPWorker
+    Limiter --> TorrentWorker
+    Limiter --> MediaWorker
+
+    HTTPWorker -.-> ProxyRouter
+    TorrentWorker -.-> ProxyRouter
+    MediaWorker -.-> ProxyRouter
+
+    HTTPWorker --> Storage
+    TorrentWorker --> Storage
+    MediaWorker --> Storage
+
+    Storage --> Hasher
+    Queue <--> DB
+    Facade <--> DB
+```
+
+### Workspace Structure
+
 Orveth is organized as a Cargo workspace with strict domain separation between engine layers and the desktop UI:
 
 ```text
