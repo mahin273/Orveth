@@ -27,6 +27,12 @@ test_downloads/
 .env
 .env.*
 !.env.example
+*.pem
+*.key
+
+# Browser extension packages
+*.crx
+extensions/*.zip
 
 # IDEs and OS files
 .idea/
