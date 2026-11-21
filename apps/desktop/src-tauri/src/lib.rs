@@ -1,5 +1,5 @@
 use orveth_core::model::{
-    DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, YtDlpStatus,
+    BridgeStatus, DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, YtDlpStatus,
 };
 use orveth_scheduler::OrvethEngine;
 use std::path::{Path, PathBuf};
@@ -207,6 +207,18 @@ async fn resolve_media_stream(
         .map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+async fn get_bridge_status(state: State<'_, Arc<AppState>>) -> Result<BridgeStatus, String> {
+    state.engine.get_bridge_status().await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_native_manifests(
+    state: State<'_, Arc<AppState>>,
+) -> Result<Vec<String>, String> {
+    state.engine.install_native_manifests().await.map_err(|e| e.to_string())
+}
+
 pub fn run() {
     let home = std::env::var("HOME").unwrap_or_else(|_| ".".to_string());
     let data_dir = PathBuf::from(home).join(".local/share/orveth");
@@ -267,6 +279,8 @@ pub fn run() {
             install_ytdlp,
             inspect_media,
             resolve_media_stream,
+            get_bridge_status,
+            install_native_manifests,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

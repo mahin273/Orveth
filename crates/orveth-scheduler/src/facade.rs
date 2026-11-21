@@ -1,9 +1,11 @@
+use crate::bridge::LocalBridgeServer;
 use crate::limiter::BandwidthLimiter;
 use crate::queue::QueueManager;
 use orveth_core::error::{OrvethError, Result};
 use orveth_core::event::EngineEvent;
 use orveth_core::model::{
-    DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, Segment, YtDlpStatus,
+    BridgeStatus, DownloadFilter, DownloadJob, EngineSettings, MediaInspectionResult, Segment,
+    YtDlpStatus,
 };
 use orveth_core::state::{DownloadStatus, VerificationStatus};
 use orveth_download::MediaExtractor;
@@ -14,7 +16,7 @@ use orveth_persistence::{
 use orveth_storage::StorageManager;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use tokio::sync::broadcast;
+use tokio::sync::{broadcast, Mutex};
 use tracing::info;
 use uuid::Uuid;
 
@@ -25,6 +27,7 @@ pub struct OrvethEngine {
     queue: Arc<QueueManager>,
     limiter: BandwidthLimiter,
     event_sender: broadcast::Sender<EngineEvent>,
+    bridge_server: Arc<Mutex<Option<LocalBridgeServer>>>,
 }
 
 impl OrvethEngine {
@@ -53,13 +56,29 @@ impl OrvethEngine {
         // Start processing any queued jobs from previous run
         queue.pump_queue().await?;
 
-        Ok(Self {
+        let bridge_server = Arc::new(Mutex::new(None));
+        let engine = Self {
             pool,
             storage,
             queue,
             limiter,
             event_sender,
-        })
+            bridge_server,
+        };
+
+        if settings.bridge_enabled {
+            if let Ok(server) = LocalBridgeServer::start(
+                engine.clone(),
+                settings.bridge_port,
+                settings.bridge_token.clone(),
+            )
+            .await
+            {
+                *engine.bridge_server.lock().await = Some(server);
+            }
+        }
+
+        Ok(engine)
     }
 
     pub fn storage(&self) -> &StorageManager {
@@ -172,6 +191,34 @@ impl OrvethEngine {
         self.limiter
             .set_limit(settings.global_bandwidth_limit_bytes_per_sec);
         self.queue.pump_queue().await?;
+
+        // Synchronize local bridge server state
+        let mut server_guard = self.bridge_server.lock().await;
+        if !settings.bridge_enabled {
+            if let Some(s) = server_guard.take() {
+                s.stop();
+            }
+        } else {
+            let needs_restart = match server_guard.as_ref() {
+                Some(s) => s.port() != settings.bridge_port,
+                None => true,
+            };
+            if needs_restart {
+                if let Some(s) = server_guard.take() {
+                    s.stop();
+                }
+                if let Ok(s) = LocalBridgeServer::start(
+                    self.clone(),
+                    settings.bridge_port,
+                    settings.bridge_token.clone(),
+                )
+                .await
+                {
+                    *server_guard = Some(s);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -257,5 +304,33 @@ impl OrvethEngine {
 
         MediaExtractor::resolve_stream_url(&binary, url, format_id, settings.proxy_url.as_deref())
             .await
+    }
+
+    pub async fn get_bridge_status(&self) -> Result<BridgeStatus> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let guard = self.bridge_server.lock().await;
+        let running = guard.is_some();
+        let port = guard
+            .as_ref()
+            .map(|s| s.port())
+            .unwrap_or(settings.bridge_port);
+        let native_hosts_installed = LocalBridgeServer::check_native_manifests_installed();
+
+        Ok(BridgeStatus {
+            running,
+            port,
+            token: settings.bridge_token,
+            native_hosts_installed,
+        })
+    }
+
+    pub async fn install_native_manifests(&self) -> Result<Vec<String>> {
+        let settings = SettingsRepository::get_settings(&self.pool).await?;
+        let paths =
+            LocalBridgeServer::install_native_manifests(settings.bridge_token.as_deref()).await?;
+        Ok(paths
+            .into_iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect())
     }
 }

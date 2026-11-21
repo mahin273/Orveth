@@ -206,6 +206,20 @@ pub struct EngineSettings {
     pub proxy_url: Option<String>,
     #[serde(default)]
     pub ytdlp_path: Option<String>,
+    #[serde(default = "default_bridge_enabled")]
+    pub bridge_enabled: bool,
+    #[serde(default = "default_bridge_port")]
+    pub bridge_port: u16,
+    #[serde(default)]
+    pub bridge_token: Option<String>,
+}
+
+fn default_bridge_enabled() -> bool {
+    true
+}
+
+fn default_bridge_port() -> u16 {
+    41527
 }
 
 impl Default for EngineSettings {
@@ -227,8 +241,19 @@ impl Default for EngineSettings {
             notification_enabled: true,
             proxy_url: None,
             ytdlp_path: None,
+            bridge_enabled: true,
+            bridge_port: 41527,
+            bridge_token: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct BridgeStatus {
+    pub running: bool,
+    pub port: u16,
+    pub token: Option<String>,
+    pub native_hosts_installed: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
