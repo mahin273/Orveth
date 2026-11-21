@@ -32,39 +32,39 @@
 
 ## Key Features
 
-### ⚡ Multi-Segment HTTP/HTTPS Acceleration
+### Multi-Segment HTTP/HTTPS Acceleration
 - **Dynamic Chunk Slicing**: Splits large files into up to 16 concurrent segmented streams.
 - **Adaptive Concurrency**: Automatically detects server `Accept-Ranges` and fallback headers; seamlessly downscales to single-stream mode for stubborn servers.
 - **Pre-Allocated Storage**: Sparse chunk allocation prevents disk fragmentation and ensures high write throughput without stuttering.
 
-### 🧲 BitTorrent & Magnet Link Engine
-- **Pure Rust BEP 3 Protocol Implementation**: Zero bloated C++ wrappers.
+### BitTorrent & Magnet Link Engine
+- **Pure Rust BEP 3 Protocol Implementation**: Pure Rust architecture without external C/C++ dependencies.
 - **Magnet Link Parser**: Instant parsing of `xt=urn:btih:` hash digests, display names, and embedded announce trackers.
 - **Compact Tracker Client**: UDP and HTTP tracker announcements with compact binary peer dictionary decoding.
 - **Interactive Torrent Modal**: Inspect torrent metainfo, file hierarchies, and tracker endpoints before starting transfers.
 
-### 🎬 Integrated Media & Video Downloader (`yt-dlp`)
-- **Web Media Extraction**: Resolves video and audio streams from thousands of websites (YouTube, Vimeo, Twitch, Twitter/X, and direct HTML5 feeds).
+### Integrated Media & Video Downloader (`yt-dlp`)
+- **Web Media Extraction**: Resolves video and audio streams from supported media platforms and direct HTML5 feeds.
 - **Stream Format Selection**: Inspect video codecs, resolutions (4K, 1080p, 720p, audio-only), and container sizes before dispatching.
-- **Automated Binary Setup**: One-click background installer fetches and maintains the official standalone `yt-dlp` executable.
+- **Automated Binary Setup**: Background installer fetches and maintains the official standalone `yt-dlp` executable.
 
-### 🧅 Custom Proxy & Tor Network Routing
+### Custom Proxy & Tor Network Routing
 - **Comprehensive Protocol Support**: Route downloads through HTTP, HTTPS, or SOCKS5 proxies.
-- **Tor Network Integration**: Native compatibility with the Tor daemon (`socks5h://127.0.0.1:9050`) for maximum privacy and geo-unblocking.
+- **Tor Network Integration**: Native compatibility with the Tor daemon (`socks5h://127.0.0.1:9050`) for privacy-preserving routing.
 - **Runtime Proxy Bypass**: Toggle proxies per-download or globally with real-time connectivity testing.
 
-### 🌐 IDM-Grade Browser Companion Extension
+### Browser Companion Extension
 - **Automatic Download Interception**: Captures native browser download events and seamlessly dispatches them to Orveth for acceleration.
-- **Floating Video Capture Bar**: Detects playing HTML5 media elements on any website and injects an unobtrusive one-click download panel.
+- **Floating Video Capture Bar**: Detects playing HTML5 media elements on web pages with a one-click download panel.
 - **Loopback Control API**: High-speed, secure local HTTP REST server (`http://127.0.0.1:41527`) authenticated via authorization tokens.
 
-### 🛡️ Resilient Persistence & Integrity Verification
+### Resilient Persistence & Integrity Verification
 - **SQLite WAL Queue**: Complete ACID state persistence. Transfers survive crashes, system reboots, and sudden network dropouts.
 - **Startup Reconciliation**: Interrupted or dangling jobs are automatically audited and recovered on application start.
 - **Streaming SHA-256 Hasher**: Real-time checksum verification against expected digests with zero post-download file re-reading overhead.
 
-### 🚦 Precision Bandwidth Throttling
-- **Token-Bucket Rate Limiting**: Configure global and per-download speed caps to prevent saturating bandwidth during active gaming or streaming.
+### Precision Bandwidth Throttling
+- **Token-Bucket Rate Limiting**: Configure global and per-download speed caps to prevent saturating network bandwidth.
 
 ---
 

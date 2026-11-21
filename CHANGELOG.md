@@ -24,7 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Automated GitHub Actions builds for Debian/Ubuntu (**`.deb`**), Fedora/RHEL (**`.rpm`**), and Windows NSIS installer (**`.exe`**) alongside universal Linux **`.AppImage`**.
   - Cross-platform path resolution supporting Windows `LOCALAPPDATA` and `USERPROFILE`.
 - **Primary Workspace UI Redesign**:
-  - Dedicated action toolbar with `[+ Add URL]`, `[🧲 Torrent]`, and `[🎬 Media]` buttons.
+  - Dedicated action toolbar with Add URL, Torrent, and Media extraction buttons.
   - Live "Engines & Network" sidebar monitor showing real-time statuses for `BEP 3`, `yt-dlp`, Loopback Bridge, and Tor/Proxy.
   - Interactive 3-card launch dashboard on empty state.
 
