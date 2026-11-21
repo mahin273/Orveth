@@ -93,7 +93,7 @@ impl SegmentWorker {
         }
 
         // Open in append mode if resuming, create/truncate if start == 0 and received == 0
-        let mut file = OpenOptions::new()
+        let file = OpenOptions::new()
             .create(true)
             .write(true)
             .append(segment.received_bytes > 0)
@@ -106,6 +106,7 @@ impl SegmentWorker {
                     segment.temp_path.display()
                 ))
             })?;
+        let mut file = tokio::io::BufWriter::with_capacity(256 * 1024, file);
 
         let mut stream = resp.bytes_stream();
         let mut downloaded_in_request = 0u64;

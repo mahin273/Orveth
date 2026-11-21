@@ -12,6 +12,7 @@ interface JobDetailDrawerProps {
   onReveal: (id: string) => void;
   onDelete?: (id: string) => void;
   speedBytesPerSec?: number;
+  peakSpeedBytesPerSec?: number;
   speedHistory?: number[];
 }
 
@@ -23,6 +24,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
   onOpen,
   onDelete,
   speedBytesPerSec = 0,
+  peakSpeedBytesPerSec = 0,
   speedHistory = [],
 }) => {
   const [copied, setCopied] = useState(false);
@@ -133,21 +135,25 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
     : 0;
 
   const peakSpeedMB = Math.max(
-    ...speedHistory,
-    +(speedBytesPerSec / (1024 * 1024)).toFixed(1)
+    (peakSpeedBytesPerSec || 0) / (1024 * 1024),
+    (speedBytesPerSec || 0) / (1024 * 1024),
+    ...speedHistory
   );
 
   // Render SVG Speed Graph with Bezier curve
   const renderSpeedChart = () => {
-    const points = speedHistory.length >= 2 ? speedHistory : [0, 0];
-    const max = Math.max(...points, 0.1);
+    const rawPoints = speedHistory.length >= 2 ? speedHistory : [0, 0];
+    const currentMB = +(speedBytesPerSec / (1024 * 1024)).toFixed(1);
+    const points = [...rawPoints.slice(-59), currentMB];
+    const peak = Math.max(...points, peakSpeedMB, 0.5);
+    const max = peak * 1.25; // 25% headroom so curves never clip against the top edge
     const width = 310;
     const height = 60;
     const step = width / (points.length - 1);
 
     const coords = points.map((val, idx) => ({
-      x: idx * step,
-      y: max > 0 ? height - (val / max) * (height - 12) - 6 : height - 6,
+      x: +(idx * step).toFixed(1),
+      y: +(height - (val / max) * (height - 12) - 6).toFixed(1),
     }));
 
     // Build smooth cubic bezier curve
@@ -155,9 +161,9 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
     for (let i = 0; i < coords.length - 1; i++) {
       const p0 = coords[i];
       const p1 = coords[i + 1];
-      const cp1x = p0.x + (p1.x - p0.x) / 2;
+      const cp1x = +(p0.x + (p1.x - p0.x) / 2).toFixed(1);
       const cp1y = p0.y;
-      const cp2x = p0.x + (p1.x - p0.x) / 2;
+      const cp2x = +(p0.x + (p1.x - p0.x) / 2).toFixed(1);
       const cp2y = p1.y;
       path += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
     }
@@ -169,12 +175,12 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
         <svg width="100%" height="100%" viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none">
           <defs>
             <linearGradient id="speedGrad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#ffffff" stopOpacity="0.18" />
-              <stop offset="100%" stopColor="#ffffff" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#38bdf8" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.0" />
             </linearGradient>
           </defs>
           <path d={areaPath} fill="url(#speedGrad)" />
-          <path d={path} fill="none" stroke="#ffffff" strokeWidth="1.5" strokeLinecap="round" />
+          <path d={path} fill="none" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
       </div>
     );
@@ -339,7 +345,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
             <span className="font-semibold text-zinc-200">Speed</span>
             <span className="text-[11px] text-zinc-500 font-mono">
               {peakSpeedMB > 0
-                ? `Last 30 seconds, peak ${peakSpeedMB.toFixed(1)} MB/s`
+                ? `Peak ${peakSpeedMB.toFixed(1)} MB/s · Current ${formatSpeed(speedBytesPerSec)}`
                 : "No transfer active"}
             </span>
           </div>

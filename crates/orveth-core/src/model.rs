@@ -213,7 +213,7 @@ impl Default for EngineSettings {
             default_destination: default_dest,
             ask_destination_each_time: false,
             max_active_downloads: 3,
-            default_segment_count: 4,
+            default_segment_count: 8,
             max_segment_count: 16,
             retry_limit: 5,
             global_bandwidth_limit_bytes_per_sec: None,

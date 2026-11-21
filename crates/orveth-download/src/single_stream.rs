@@ -55,7 +55,7 @@ impl SingleStreamWorker {
             .map_err(|e| OrvethError::Network(format!("Single stream request failed: {e}")))?;
 
         let status = resp.status();
-        let (mut file, total_bytes, can_resume) = if resuming {
+        let (file, total_bytes, can_resume) = if resuming {
             if status == StatusCode::PARTIAL_CONTENT {
                 // Resume accepted
                 let total = resp
@@ -120,6 +120,7 @@ impl SingleStreamWorker {
             });
         };
 
+        let mut file = tokio::io::BufWriter::with_capacity(256 * 1024, file);
         let mut stream = resp.bytes_stream();
         let mut total_downloaded = if can_resume { existing_bytes } else { 0 };
 
