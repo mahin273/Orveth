@@ -491,10 +491,15 @@ export const App: React.FC = () => {
           <span>
             {settings.default_segment_count} segments per file by default, up to {settings.max_segment_count}
           </span>
+          {settings.proxy_url && (
+            <span className="text-amber-400 font-mono text-[10px] bg-amber-500/10 px-1.5 py-0.5 rounded border border-amber-500/20">
+              Proxy: {settings.proxy_url.replace(/:[^:@]+@/, ":***@")}
+            </span>
+          )}
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.2.0
+          Orveth 0.2.1
         </div>
       </footer>
 

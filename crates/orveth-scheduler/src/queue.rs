@@ -20,13 +20,32 @@ pub type ActiveJobMap = Arc<Mutex<HashMap<Uuid, (JoinHandle<()>, Arc<AtomicBool>
 pub struct QueueManager {
     pool: DbPool,
     storage: StorageManager,
-    client: Client,
     limiter: BandwidthLimiter,
     event_sender: broadcast::Sender<EngineEvent>,
     active_jobs: ActiveJobMap,
 }
 
 impl QueueManager {
+    pub fn build_client(proxy_url: Option<&str>) -> Client {
+        let mut builder = Client::builder()
+            .tcp_nodelay(true)
+            .tcp_keepalive(Some(std::time::Duration::from_secs(30)))
+            .pool_max_idle_per_host(32);
+
+        if let Some(proxy_str) = proxy_url {
+            let trimmed = proxy_str.trim();
+            if !trimmed.is_empty() {
+                if let Ok(proxy) = reqwest::Proxy::all(trimmed) {
+                    builder = builder.proxy(proxy);
+                } else {
+                    tracing::warn!(proxy = %trimmed, "Invalid proxy URL format; falling back to direct");
+                }
+            }
+        }
+
+        builder.build().unwrap_or_else(|_| Client::new())
+    }
+
     pub fn new(
         pool: DbPool,
         storage: StorageManager,
@@ -36,12 +55,6 @@ impl QueueManager {
         Self {
             pool,
             storage,
-            client: Client::builder()
-                .tcp_nodelay(true)
-                .tcp_keepalive(Some(std::time::Duration::from_secs(30)))
-                .pool_max_idle_per_host(32)
-                .build()
-                .unwrap(),
             limiter,
             event_sender,
             active_jobs: Arc::new(Mutex::new(HashMap::new())),
@@ -66,6 +79,7 @@ impl QueueManager {
             ..Default::default()
         };
         let candidates = JobRepository::list(&self.pool, &queued_filter).await?;
+        let client = Self::build_client(settings.proxy_url.as_deref());
 
         for job in candidates.into_iter().take(available_slots) {
             let job_id = job.id;
@@ -75,7 +89,7 @@ impl QueueManager {
             let ctx = JobExecutionContext {
                 pool: self.pool.clone(),
                 storage: self.storage.clone(),
-                client: self.client.clone(),
+                client: client.clone(),
                 job_id,
                 settings: settings.clone(),
                 limiter: self.limiter.clone(),
@@ -160,5 +174,32 @@ impl QueueManager {
         });
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_build_client_direct_when_none_or_empty() {
+        let _client_none = QueueManager::build_client(None);
+        let _client_empty = QueueManager::build_client(Some("   "));
+    }
+
+    #[test]
+    fn test_build_client_with_http_proxy() {
+        let _client = QueueManager::build_client(Some("http://127.0.0.1:8080"));
+    }
+
+    #[test]
+    fn test_build_client_with_socks5_tor_proxy() {
+        let _client = QueueManager::build_client(Some("socks5://127.0.0.1:9050"));
+    }
+
+    #[test]
+    fn test_build_client_fallback_on_invalid_proxy() {
+        // Invalid proxy scheme or address should log a warning and fall back to direct client
+        let _client = QueueManager::build_client(Some("not-a-valid-url:::9999"));
     }
 }
