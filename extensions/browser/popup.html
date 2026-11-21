@@ -5,13 +5,14 @@
   <title>Orveth Integration</title>
   <style>
     body {
-      width: 320px;
+      width: 340px;
       margin: 0;
       padding: 16px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background-color: #09090b;
       color: #f4f4f5;
-      font-size: 13px;
+      font-size: 12px;
+      box-sizing: border-box;
     }
     .header {
       display: flex;
@@ -19,76 +20,175 @@
       justify-content: space-between;
       border-bottom: 1px solid #27272a;
       padding-bottom: 10px;
-      margin-bottom: 14px;
+      margin-bottom: 12px;
     }
-    .title {
-      font-weight: 600;
-      font-size: 14px;
+    .brand {
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 7px;
+      font-weight: 600;
+      font-size: 14px;
+    }
+    .brand-logo {
+      width: 18px;
+      height: 18px;
+      border-radius: 4px;
     }
     .status-badge {
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      font-size: 11px;
-      padding: 2px 7px;
+      font-size: 10px;
+      padding: 2px 8px;
       border-radius: 9999px;
       font-family: monospace;
+      font-weight: 500;
     }
     .status-online {
       background: rgba(16, 185, 129, 0.15);
       color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.3);
+      border: 1px solid rgba(16, 185, 129, 0.35);
     }
     .status-offline {
       background: rgba(239, 68, 68, 0.15);
       color: #f87171;
-      border: 1px solid rgba(239, 68, 68, 0.3);
+      border: 1px solid rgba(239, 68, 68, 0.35);
     }
-    .field {
+    .section-title {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #71717a;
+      margin: 12px 0 6px 0;
+    }
+    .quick-input-group {
+      display: flex;
+      gap: 6px;
       margin-bottom: 12px;
     }
-    label {
-      display: block;
-      color: #a1a1aa;
-      font-size: 11px;
-      margin-bottom: 4px;
-    }
     input[type="text"], input[type="number"] {
-      width: 100%;
+      flex: 1;
       box-sizing: border-box;
       padding: 7px 9px;
       background: #18181b;
       border: 1px solid #27272a;
       border-radius: 6px;
       color: #f4f4f5;
-      font-size: 12px;
+      font-size: 11px;
       outline: none;
+      font-family: monospace;
     }
     input:focus {
       border-color: #52525b;
     }
-    button {
-      width: 100%;
-      padding: 8px;
+    .btn-primary {
+      padding: 7px 12px;
       background: #fafafa;
       color: #09090b;
       border: none;
       border-radius: 6px;
-      font-weight: 500;
-      font-size: 12px;
+      font-weight: 600;
+      font-size: 11px;
       cursor: pointer;
       transition: background 0.15s;
+      white-space: nowrap;
     }
-    button:hover {
+    .btn-primary:hover {
       background: #e4e4e7;
     }
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 0;
+      border-bottom: 1px solid #18181b;
+    }
+    .toggle-label {
+      font-size: 11px;
+      color: #d4d4d8;
+      display: flex;
+      flex-direction: column;
+    }
+    .toggle-desc {
+      font-size: 9px;
+      color: #71717a;
+    }
+    /* Switch styling */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 32px;
+      height: 18px;
+    }
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #27272a;
+      transition: .2s;
+      border-radius: 18px;
+    }
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 14px;
+      width: 14px;
+      left: 2px;
+      bottom: 2px;
+      background-color: #a1a1aa;
+      transition: .2s;
+      border-radius: 50%;
+    }
+    input:checked + .slider {
+      background-color: #7c3aed;
+    }
+    input:checked + .slider:before {
+      transform: translateX(14px);
+      background-color: #ffffff;
+    }
+    .collapsible-header {
+      font-size: 10px;
+      color: #71717a;
+      cursor: pointer;
+      padding: 6px 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .collapsible-header:hover {
+      color: #a1a1aa;
+    }
+    .config-box {
+      display: none;
+      background: #121215;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #27272a;
+      margin-top: 4px;
+    }
+    .config-box.open {
+      display: block;
+    }
+    .field {
+      margin-bottom: 6px;
+    }
+    .field label {
+      display: block;
+      color: #a1a1aa;
+      font-size: 10px;
+      margin-bottom: 2px;
+    }
     .message {
-      margin-top: 10px;
+      margin-top: 6px;
       font-size: 11px;
       text-align: center;
+      min-height: 14px;
     }
     .success { color: #34d399; }
     .error { color: #f87171; }
@@ -96,24 +196,59 @@
 </head>
 <body>
   <div class="header">
-    <div class="title">Orveth</div>
+    <div class="brand">
+      <img src="icons/icon32.png" class="brand-logo" alt="Orveth Logo" />
+      <span>Orveth IDM</span>
+    </div>
     <div id="statusBadge" class="status-badge status-offline">● Checking...</div>
   </div>
 
-  <form id="downloadForm">
-    <div class="field">
-      <label for="urlInput">Quick Download URL</label>
-      <input type="text" id="urlInput" placeholder="https://example.com/file.zip" required autofocus>
-    </div>
-    <button type="submit" id="submitBtn">Send to Orveth</button>
+  <!-- Quick Add URL -->
+  <form id="downloadForm" class="quick-input-group">
+    <input type="text" id="urlInput" placeholder="Paste URL, Magnet, or Media link" required />
+    <button type="submit" class="btn-primary">Download</button>
   </form>
-
   <div id="feedback" class="message"></div>
 
-  <div style="margin-top: 14px; border-top: 1px solid #27272a; padding-top: 10px;">
+  <!-- IDM Interception Settings -->
+  <div class="section-title">Integration & Interception</div>
+
+  <div class="toggle-row">
+    <div class="toggle-label">
+      <span>Auto-Catch Downloads</span>
+      <span class="toggle-desc">Intercept browser downloads into Orveth</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="interceptToggle" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div class="toggle-row">
+    <div class="toggle-label">
+      <span>Floating Video Bar</span>
+      <span class="toggle-desc">Show download button over web videos</span>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="videoBarToggle" checked>
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <!-- Bridge Server Connection Settings -->
+  <div id="configToggle" class="collapsible-header">
+    <span>Connection & Token Settings</span>
+    <span id="configArrow">▾</span>
+  </div>
+
+  <div id="configBox" class="config-box">
     <div class="field">
-      <label for="tokenInput">Bridge Token (Optional)</label>
-      <input type="text" id="tokenInput" placeholder="Security Token">
+      <label for="portInput">Bridge Port</label>
+      <input type="number" id="portInput" value="41527" />
+    </div>
+    <div class="field">
+      <label for="tokenInput">Bearer Security Token (optional)</label>
+      <input type="text" id="tokenInput" placeholder="Paste token from Orveth settings" />
     </div>
   </div>
 
