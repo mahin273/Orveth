@@ -1,54 +1,179 @@
 # Orveth
 
-A fast, reliable, power-user download manager for Linux desktop built around a capable, independently testable Rust download engine and a clean Tauri + React frontend.
+<p align="center">
+  <img src="apps/desktop/src-tauri/icons/128x128.png" alt="Orveth Logo" width="96" height="96" />
+</p>
 
-## Features
+<h3 align="center">High-Performance, Multi-Engine Accelerated Download Manager</h3>
 
-- **Engine First:** Segmented and single-stream transfers with verified byte ranges.
-- **Adaptive Concurrency:** Auto-detects server range support and adapts segment counts.
-- **Robust Persistence:** SQLite backed queue with startup recovery and reconciliation.
-- **Network Resilient:** Resumes interrupted transfers with exponential backoff and jitter.
-- **Bandwidth Control:** Token-bucket rate limiting (global and per-job).
-- **Integrity Verification:** Optional SHA-256 verification against user-supplied digests.
-- **Desktop Integration:** Native notifications, reveal in file manager, and AppImage packaging.
+<p align="center">
+  A modern, power-user download manager built with <strong>Rust</strong>, <strong>Tauri v2</strong>, and <strong>React + TypeScript</strong>.<br />
+  Engineered for extreme transfer speeds, local-first privacy, network resilience, and seamless browser integration.
+</p>
+
+<p align="center">
+  <a href="https://github.com/mahin273/Orveth/actions/workflows/ci.yml"><img src="https://github.com/mahin273/Orveth/actions/workflows/ci.yml/badge.svg" alt="CI Status" /></a>
+  <img src="https://img.shields.io/badge/Rust-1.80%2B-orange?logo=rust" alt="Rust 1.80+" />
+  <img src="https://img.shields.io/badge/Tauri-v2-blue?logo=tauri" alt="Tauri v2" />
+  <img src="https://img.shields.io/badge/React-18-61dafb?logo=react" alt="React 18" />
+  <img src="https://img.shields.io/badge/Platform-Linux%20%7C%20Windows-lightgrey?logo=linux" alt="Cross-Platform" />
+  <img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License" />
+</p>
+
+---
+
+## Workspace Preview
+
+<p align="center">
+  <img src="assets/screenshot.png" alt="Orveth Desktop Workspace" width="100%" style="border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,0.4);" />
+</p>
+
+---
+
+## Key Features
+
+### ⚡ Multi-Segment HTTP/HTTPS Acceleration
+- **Dynamic Chunk Slicing**: Splits large files into up to 16 concurrent segmented streams.
+- **Adaptive Concurrency**: Automatically detects server `Accept-Ranges` and fallback headers; seamlessly downscales to single-stream mode for stubborn servers.
+- **Pre-Allocated Storage**: Sparse chunk allocation prevents disk fragmentation and ensures high write throughput without stuttering.
+
+### 🧲 BitTorrent & Magnet Link Engine
+- **Pure Rust BEP 3 Protocol Implementation**: Zero bloated C++ wrappers.
+- **Magnet Link Parser**: Instant parsing of `xt=urn:btih:` hash digests, display names, and embedded announce trackers.
+- **Compact Tracker Client**: UDP and HTTP tracker announcements with compact binary peer dictionary decoding.
+- **Interactive Torrent Modal**: Inspect torrent metainfo, file hierarchies, and tracker endpoints before starting transfers.
+
+### 🎬 Integrated Media & Video Downloader (`yt-dlp`)
+- **Web Media Extraction**: Resolves video and audio streams from thousands of websites (YouTube, Vimeo, Twitch, Twitter/X, and direct HTML5 feeds).
+- **Stream Format Selection**: Inspect video codecs, resolutions (4K, 1080p, 720p, audio-only), and container sizes before dispatching.
+- **Automated Binary Setup**: One-click background installer fetches and maintains the official standalone `yt-dlp` executable.
+
+### 🧅 Custom Proxy & Tor Network Routing
+- **Comprehensive Protocol Support**: Route downloads through HTTP, HTTPS, or SOCKS5 proxies.
+- **Tor Network Integration**: Native compatibility with the Tor daemon (`socks5h://127.0.0.1:9050`) for maximum privacy and geo-unblocking.
+- **Runtime Proxy Bypass**: Toggle proxies per-download or globally with real-time connectivity testing.
+
+### 🌐 IDM-Grade Browser Companion Extension
+- **Automatic Download Interception**: Captures native browser download events and seamlessly dispatches them to Orveth for acceleration.
+- **Floating Video Capture Bar**: Detects playing HTML5 media elements on any website and injects an unobtrusive one-click download panel.
+- **Loopback Control API**: High-speed, secure local HTTP REST server (`http://127.0.0.1:41527`) authenticated via authorization tokens.
+
+### 🛡️ Resilient Persistence & Integrity Verification
+- **SQLite WAL Queue**: Complete ACID state persistence. Transfers survive crashes, system reboots, and sudden network dropouts.
+- **Startup Reconciliation**: Interrupted or dangling jobs are automatically audited and recovered on application start.
+- **Streaming SHA-256 Hasher**: Real-time checksum verification against expected digests with zero post-download file re-reading overhead.
+
+### 🚦 Precision Bandwidth Throttling
+- **Token-Bucket Rate Limiting**: Configure global and per-download speed caps to prevent saturating bandwidth during active gaming or streaming.
+
+---
+
+## Downloads & Releases
+
+Orveth provides official pre-built packages for modern Linux distributions and Windows:
+
+| Platform | Format | Installation Command / Guide |
+| :--- | :--- | :--- |
+| **Linux (Universal)** | `.AppImage` | `chmod +x Orveth*.AppImage && ./Orveth*.AppImage` |
+| **Debian / Ubuntu / Mint** | `.deb` | `sudo dpkg -i orveth_*_amd64.deb` |
+| **Fedora / RHEL / openSUSE** | `.rpm` | `sudo rpm -ivh Orveth-*.x86_64.rpm` |
+| **Windows 10 / 11** | `.exe` (NSIS) | Run `Orveth_*_x64-setup.exe` installer |
+
+Check the latest release binaries on the [GitHub Releases Page](https://github.com/mahin273/Orveth/releases).
+
+---
+
+## Browser Extension Installation
+
+1. Navigate to `extensions/browser/` (or download the packaged ZIP from GitHub Releases).
+2. Open your Chromium-based browser (Chrome, Brave, Edge, Opera, Vivaldi) and navigate to `chrome://extensions`.
+3. Enable **Developer mode** in the top-right corner.
+4. Click **Load unpacked** and select the `extensions/browser/` directory.
+5. In Firefox, navigate to `about:debugging#/runtime/this-firefox` and click **Load Temporary Add-on...**.
+
+Detailed store publishing guidelines and privacy documentation:
+- [Extension Privacy Policy](extensions/PRIVACY.md)
+
+---
 
 ## Architecture
 
-Orveth is structured as a cargo workspace with independent domain crates and an application desktop shell:
+Orveth is organized as a Cargo workspace with strict domain separation between engine layers and the desktop UI:
 
 ```text
-crates/
-├── orveth-core          # Engine facade, lifecycle state machine, domain models
-├── orveth-download      # HTTP transfer worker, segment validation, single-stream fallback
-├── orveth-scheduler     # Priority queue manager and worker coordinator
-├── orveth-storage       # File allocation, chunked segment writers, atomic finalizer
-├── orveth-persistence   # SQLite repositories, WAL mode, migrations, state recovery
-└── orveth-integrity     # Streamed checksums and hash verification
-apps/
-└── desktop              # Tauri 2 application and React + TypeScript UI
+Orveth/
+├── apps/
+│   └── desktop/               # Tauri v2 shell + React 18 / Tailwind CSS UI
+├── crates/
+│   ├── orveth-core/           # Domain models, lifecycle state machines, URL sanitization
+│   ├── orveth-download/       # HTTP segment workers, BitTorrent engine, yt-dlp extractor
+│   ├── orveth-scheduler/      # Concurrent priority queue, rate limiter, local loopback API
+│   ├── orveth-storage/        # Chunk file allocators, segment writers, atomic finalizer
+│   ├── orveth-persistence/    # SQLite connection pooling, migrations, state recovery
+│   └── orveth-integrity/      # Incremental SHA-256 streaming verification
+├── extensions/
+│   └── browser/               # Manifest V3 companion extension (intercept + video bar)
+└── .github/
+    └── workflows/ci.yml       # Multi-platform CI/CD (AppImage, deb, rpm, exe)
 ```
 
-## Getting Started
+---
+
+## Building from Source
 
 ### Prerequisites
 
-- Rust (edition 2021 / 1.75+)
-- Node.js (v20+)
-- pnpm (v9+)
-- Linux desktop libraries (GTK3, WebKit2GTK)
+- **Rust**: `1.80` or later (`rustup default stable`)
+- **Node.js**: `v20+` & **pnpm**: `v9+`
+- **Linux Dependencies** (Ubuntu/Debian):
+  ```bash
+  sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+  ```
+- **Linux Dependencies** (Fedora):
+  ```bash
+  sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libayatana-appindicator-devel librsvg2-devel
+  ```
 
-### Development
+### Development Setup
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/mahin273/Orveth.git
+   cd Orveth
+   ```
+
+2. **Run Rust unit and integration tests**:
+   ```bash
+   cargo test --workspace
+   ```
+
+3. **Install frontend dependencies**:
+   ```bash
+   cd apps/desktop
+   pnpm install
+   ```
+
+4. **Launch the development application**:
+   ```bash
+   pnpm tauri dev
+   ```
+
+### Packaging for Release
 
 ```bash
-# Run tests across all crates
-cargo test --workspace
-
-# Start desktop app in development
 cd apps/desktop
-pnpm install
-pnpm tauri dev
+pnpm tauri build
 ```
+Binaries and bundles will be placed in `apps/desktop/src-tauri/target/release/bundle/`.
+
+---
+
+## Contributing
+
+We welcome community contributions, bug reports, and pull requests! Please read our [Contributing Guide](CONTRIBUTING.md) for details on code style, conventional commits, and review procedures.
+
+---
 
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the [MIT License](LICENSE).
