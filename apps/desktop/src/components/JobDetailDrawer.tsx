@@ -35,30 +35,46 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
     }
 
     let unlisten: (() => void) | undefined;
-    api.getSegments(job.id).then(setSegments).catch(() => setSegments([]));
+    const fetchSegs = () => {
+      api
+        .getSegments(job.id)
+        .then((data) => {
+          if (data && data.length > 0) {
+            setSegments(data);
+          }
+        })
+        .catch(() => {});
+    };
 
-    api.onEngineEvent((event: any) => {
-      if (
-        event.event_type === "segment_state_changed" &&
-        event.payload?.download_id === job.id
-      ) {
-        setSegments((prev) =>
-          prev.map((s) =>
-            s.id === event.payload.segment_id
-              ? {
-                  ...s,
-                  status: event.payload.status,
-                  received_bytes: event.payload.received_bytes,
-                }
-              : s
-          )
-        );
-      }
-    }).then((unsub) => {
-      unlisten = unsub;
-    }).catch(() => {});
+    fetchSegs();
+    const interval = setInterval(fetchSegs, 1000);
+
+    api
+      .onEngineEvent((event: any) => {
+        if (
+          event.event_type === "segment_state_changed" &&
+          event.payload?.download_id === job.id
+        ) {
+          setSegments((prev) =>
+            prev.map((s) =>
+              s.id === event.payload.segment_id
+                ? {
+                    ...s,
+                    status: event.payload.status,
+                    received_bytes: event.payload.received_bytes,
+                  }
+                : s
+            )
+          );
+        }
+      })
+      .then((unsub) => {
+        unlisten = unsub;
+      })
+      .catch(() => {});
 
     return () => {
+      clearInterval(interval);
       if (unlisten) unlisten();
     };
   }, [job?.id]);
@@ -93,6 +109,23 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
       return `${(bytes / 1024).toFixed(0)} KB/s`;
     }
     return `${bytes} B/s`;
+  };
+
+  const formatTimeLeft = () => {
+    if (job.status === "completed") return "-";
+    if (job.status !== "downloading" || speedBytesPerSec <= 0 || !job.total_bytes) {
+      return "-";
+    }
+    const remaining = Math.max(0, job.total_bytes - job.downloaded_bytes);
+    const seconds = Math.round(remaining / speedBytesPerSec);
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins >= 60) {
+      const hrs = Math.floor(mins / 60);
+      return `${hrs}h ${mins % 60}m`;
+    }
+    return `${mins}m ${secs}s`;
   };
 
   const progressPercent = job.total_bytes
@@ -169,7 +202,9 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
               <span className="capitalize">{job.status}</span>
             </div>
             <span className="text-[11px] text-zinc-500 font-mono">
-              {job.segmented ? "8 segments" : "Single stream"}
+              {job.segmented
+                ? `${segments.length > 0 ? segments.length : 4} segments`
+                : "Single stream"}
             </span>
           </div>
         </div>
@@ -237,27 +272,56 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
           <div className="text-[11px] text-zinc-400 font-mono">
             {job.status === "completed"
               ? "Download complete"
-              : `Active at ${formatSpeed(speedBytesPerSec)}`}
+              : speedBytesPerSec > 0
+              ? `Active at ${formatSpeed(speedBytesPerSec)}${formatTimeLeft() !== "-" ? ` · ${formatTimeLeft()} left` : ""}`
+              : job.status === "downloading"
+              ? "Connecting..."
+              : job.status === "paused"
+              ? "Paused"
+              : "Idle"}
           </div>
 
-          {/* 8 Discrete Segment Blocks */}
+          {/* Discrete Segment Blocks */}
           <div className="flex items-center gap-1.5 w-full pt-1">
-            {Array.from({ length: 8 }).map((_, i) => {
-              const threshold = (i + 1) * 12.5;
-              const isFilled = progressPercent >= threshold;
-              return (
-                <div
-                  key={i}
-                  className={`h-2 flex-1 rounded-sm transition-all ${
-                    isFilled
-                      ? "bg-white"
-                      : i === Math.floor(progressPercent / 12.5) && job.status === "downloading"
-                      ? "bg-zinc-500 animate-pulse"
-                      : "bg-zinc-800"
-                  }`}
-                />
-              );
-            })}
+            {job.segmented && segments.length > 0
+              ? segments.map((seg, idx) => {
+                  const segLen = seg.end_byte - seg.start_byte + 1;
+                  const segPct =
+                    segLen > 0
+                      ? Math.min(100, Math.round((seg.received_bytes / segLen) * 100))
+                      : 0;
+                  const isFilled = seg.status === "completed" || segPct >= 100;
+                  return (
+                    <div
+                      key={seg.id}
+                      className={`h-2 flex-1 rounded-sm transition-all ${
+                        isFilled
+                          ? "bg-white"
+                          : seg.status === "downloading"
+                          ? "bg-zinc-500 animate-pulse"
+                          : "bg-zinc-800"
+                      }`}
+                      title={`Segment ${idx + 1}: ${segPct}%`}
+                    />
+                  );
+                })
+              : Array.from({ length: 8 }).map((_, i) => {
+                  const threshold = (i + 1) * 12.5;
+                  const isFilled = progressPercent >= threshold;
+                  return (
+                    <div
+                      key={i}
+                      className={`h-2 flex-1 rounded-sm transition-all ${
+                        isFilled
+                          ? "bg-white"
+                          : i === Math.floor(progressPercent / 12.5) &&
+                            job.status === "downloading"
+                          ? "bg-zinc-500 animate-pulse"
+                          : "bg-zinc-800"
+                      }`}
+                    />
+                  );
+                })}
           </div>
 
           <div className="flex items-center justify-between text-[11px] text-zinc-500 font-mono pt-0.5">
@@ -265,7 +329,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
               {formatBytes(job.downloaded_bytes)}
               {job.total_bytes ? ` of ${formatBytes(job.total_bytes)}` : ""}
             </span>
-            <span>Parallel segments</span>
+            <span>{job.segmented ? "Parallel segments" : "Single stream"}</span>
           </div>
         </div>
 
@@ -283,77 +347,61 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
         </div>
 
         {/* Segments Breakdown Card */}
-        <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-3 space-y-2.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-zinc-200">Segments</span>
-            <span className="text-[11px] text-zinc-500 font-mono">
-              {segments.length > 0
-                ? job.status === "completed"
-                  ? `${segments.length} of ${segments.length} completed`
-                  : `${segments.filter((s) => s.status === "completed").length} of ${segments.length} completed`
-                : job.segmented
-                ? "Allocating segments..."
-                : "Single stream"}
-            </span>
-          </div>
+        {job.segmented && (
+          <div className="bg-zinc-950/80 border border-zinc-800/80 rounded-xl p-3 space-y-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-zinc-200">Segments</span>
+              <span className="text-[11px] text-zinc-500 font-mono">
+                {segments.length > 0
+                  ? job.status === "completed"
+                    ? `${segments.length} of ${segments.length} completed`
+                    : `${segments.filter((s) => s.status === "completed").length} of ${segments.length} completed`
+                  : "Allocating segments..."}
+              </span>
+            </div>
 
-          <div className="space-y-1.5">
-            {segments.length > 0 ? (
-              segments.map((seg, i) => {
-                const expected = seg.end_byte - seg.start_byte + 1;
-                const pct =
-                  expected > 0
-                    ? Math.min(
-                        100,
-                        Math.round((seg.received_bytes / expected) * 100)
-                      )
-                    : 0;
-                return (
-                  <div
-                    key={seg.id}
-                    className="flex items-center gap-2 text-[10px] font-mono"
-                  >
-                    <span className="w-3 text-zinc-500 text-right">{i + 1}</span>
-                    <span className="w-24 text-zinc-400 truncate">
-                      {formatBytes(seg.start_byte)} - {formatBytes(seg.end_byte)}
-                    </span>
-                    <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full rounded-full transition-all ${
-                          seg.status === "completed" || pct >= 100
-                            ? "bg-emerald-400"
-                            : "bg-white"
-                        }`}
-                        style={{ width: `${pct}%` }}
-                      />
+            <div className="space-y-1.5">
+              {segments.length > 0 ? (
+                segments.map((seg, i) => {
+                  const expected = seg.end_byte - seg.start_byte + 1;
+                  const pct =
+                    expected > 0
+                      ? Math.min(
+                          100,
+                          Math.round((seg.received_bytes / expected) * 100)
+                        )
+                      : 0;
+                  return (
+                    <div
+                      key={seg.id}
+                      className="flex items-center gap-2 text-[10px] font-mono"
+                    >
+                      <span className="w-3 text-zinc-500 text-right">{i + 1}</span>
+                      <span className="w-24 text-zinc-400 truncate">
+                        {formatBytes(seg.start_byte)} - {formatBytes(seg.end_byte)}
+                      </span>
+                      <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all ${
+                            seg.status === "completed" || pct >= 100
+                              ? "bg-emerald-400"
+                              : "bg-white"
+                          }`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                      <span className="w-8 text-right text-zinc-400">{pct}%</span>
                     </div>
-                    <span className="w-8 text-right text-zinc-400">{pct}%</span>
-                  </div>
-                );
-              })
-            ) : (
-              <div className="flex items-center gap-2 text-[10px] font-mono">
-                <span className="w-3 text-zinc-500 text-right">1</span>
-                <span className="w-24 text-zinc-400 truncate">
-                  0 B - {job.total_bytes ? formatBytes(job.total_bytes) : "Unknown"}
-                </span>
-                <div className="flex-1 h-1 bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${
-                      job.status === "completed" || progressPercent >= 100
-                        ? "bg-emerald-400"
-                        : "bg-white"
-                    }`}
-                    style={{ width: `${progressPercent}%` }}
-                  />
+                  );
+                })
+              ) : (
+                <div className="text-zinc-500 text-[10px] py-1 font-mono">
+                  Allocating segment byte ranges...
                 </div>
-                <span className="w-8 text-right text-zinc-400">
-                  {progressPercent}%
-                </span>
-              </div>
-            )}
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Technical Metadata Key-Value List */}
         <div className="space-y-2.5 pt-1 text-[11px]">

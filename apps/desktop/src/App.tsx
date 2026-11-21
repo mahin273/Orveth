@@ -34,10 +34,47 @@ export const App: React.FC = () => {
   const [speedsById, setSpeedsById] = useState<Record<string, number>>({});
   const [speedHistory, setSpeedHistory] = useState<number[]>([]);
 
+  const prevBytesRef = React.useRef<{ time: number; bytesById: Record<string, number> }>({
+    time: Date.now(),
+    bytesById: {},
+  });
+
   const fetchJobs = async () => {
     try {
       const list = await api.listDownloads();
       setJobs(list);
+
+      // Compute fallback speed from polling delta
+      const now = Date.now();
+      const prev = prevBytesRef.current;
+      const elapsedSec = Math.max(0.5, (now - prev.time) / 1000);
+      list.forEach((job) => {
+        const prevBytes = prev.bytesById[job.id] ?? job.downloaded_bytes;
+        const deltaBytes = Math.max(0, job.downloaded_bytes - prevBytes);
+        const polledSpeed = Math.round(deltaBytes / elapsedSec);
+        if (["downloading", "retrying"].includes(job.status)) {
+          setSpeedsById((prevSpeeds) => {
+            const currentSpeed = prevSpeeds[job.id] || 0;
+            if (currentSpeed === 0 && polledSpeed > 0) {
+              return { ...prevSpeeds, [job.id]: polledSpeed };
+            }
+            return prevSpeeds;
+          });
+        } else {
+          setSpeedsById((prevSpeeds) => {
+            if (prevSpeeds[job.id]) {
+              const copy = { ...prevSpeeds };
+              delete copy[job.id];
+              return copy;
+            }
+            return prevSpeeds;
+          });
+        }
+      });
+      prevBytesRef.current = {
+        time: now,
+        bytesById: Object.fromEntries(list.map((j) => [j.id, j.downloaded_bytes])),
+      };
     } catch (e) {
       console.error("Failed fetching downloads:", e);
     }
@@ -87,6 +124,9 @@ export const App: React.FC = () => {
           type === "download_failed" ||
           type === "queue_changed"
         ) {
+          if (payload?.new_status && ["paused", "completed", "failed"].includes(payload.new_status)) {
+            setSpeedsById((prev) => ({ ...prev, [payload.download_id]: 0 }));
+          }
           fetchJobs();
         }
       })
@@ -114,14 +154,17 @@ export const App: React.FC = () => {
     return sum;
   }, [jobs, speedsById]);
 
-  // Sample speed history every second
+  // Sample speed history every second without getting reset by rapid speed updates
+  const totalSpeedRef = React.useRef(totalSpeed);
+  totalSpeedRef.current = totalSpeed;
+
   useEffect(() => {
     const timer = setInterval(() => {
-      const mbps = +(totalSpeed / (1024 * 1024)).toFixed(1);
+      const mbps = +(totalSpeedRef.current / (1024 * 1024)).toFixed(1);
       setSpeedHistory((prev) => [...prev.slice(-29), mbps]);
     }, 1000);
     return () => clearInterval(timer);
-  }, [totalSpeed]);
+  }, []);
 
   // Keyboard shortcut Ctrl+K to search
   useEffect(() => {
@@ -380,7 +423,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.1.4
+          Orveth 0.1.5
         </div>
       </footer>
 
