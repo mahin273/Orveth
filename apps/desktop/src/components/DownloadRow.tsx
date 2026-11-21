@@ -11,6 +11,7 @@ import {
   RotateCcw,
   FolderOpen,
   MoreHorizontal,
+  Trash2,
 } from "lucide-react";
 
 interface DownloadRowProps {
@@ -23,6 +24,7 @@ interface DownloadRowProps {
   onOpen: (id: string) => void;
   onReveal: (id: string) => void;
   onCancel: (id: string) => void;
+  onDelete?: (id: string) => void;
   speedBytesPerSec?: number;
 }
 
@@ -34,6 +36,7 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
   onResume,
   onRetry,
   onOpen,
+  onDelete,
   speedBytesPerSec = 0,
 }) => {
   const getFileIcon = (name: string) => {
@@ -341,7 +344,7 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
 
       {/* 6. Action buttons */}
       <div
-        className="w-20 shrink-0 flex items-center justify-end gap-1.5"
+        className="w-24 shrink-0 flex items-center justify-end gap-1.5"
         onClick={(e) => e.stopPropagation()}
       >
         {job.status === "downloading" && (
@@ -381,6 +384,16 @@ export const DownloadRow: React.FC<DownloadRowProps> = ({
             title="Retry"
           >
             <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+        )}
+
+        {onDelete && (
+          <button
+            onClick={() => onDelete(job.id)}
+            className="p-1 rounded text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+            title="Delete download"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
           </button>
         )}
 

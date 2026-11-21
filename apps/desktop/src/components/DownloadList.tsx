@@ -12,6 +12,7 @@ interface DownloadListProps {
   onResume: (id: string) => void;
   onRetry: (id: string) => void;
   onCancel: (id: string) => void;
+  onDelete: (id: string) => void;
   onOpen: (id: string) => void;
   onReveal: (id: string) => void;
   onOpenAddModal?: () => void;
@@ -35,6 +36,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
   onResume,
   onRetry,
   onCancel,
+  onDelete,
   onOpen,
   onReveal,
   onOpenAddModal,
@@ -90,7 +92,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
         <div className="w-48">Progress</div>
         <div className="w-24 text-right">Speed</div>
         <div className="w-20 text-right">Time left</div>
-        <div className="w-20" />
+        <div className="w-24" />
       </div>
 
       {/* Rows Container */}
@@ -124,6 +126,7 @@ export const DownloadList: React.FC<DownloadListProps> = ({
               onResume={onResume}
               onRetry={onRetry}
               onCancel={onCancel}
+              onDelete={onDelete}
               onOpen={onOpen}
               onReveal={onReveal}
               speedBytesPerSec={speedsById[job.id] || 0}

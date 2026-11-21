@@ -232,6 +232,23 @@ export const App: React.FC = () => {
     await fetchJobs();
   };
 
+  const handleDelete = async (id: string) => {
+    try {
+      await api.cancelDownload(id, true);
+    } catch {
+      // Ignored if already canceled/finished
+    }
+    try {
+      await api.removeDownload(id, true);
+    } catch (e) {
+      console.error("Failed to remove download:", e);
+    }
+    if (selectedJob?.id === id) {
+      setSelectedJob(null);
+    }
+    await fetchJobs();
+  };
+
   const breadcrumb = useMemo(() => {
     if (selectedCategory) {
       const catMap: Record<string, string> = {
@@ -299,6 +316,7 @@ export const App: React.FC = () => {
             onResume={(id) => api.resumeDownload(id)}
             onRetry={(id) => api.retryDownload(id)}
             onCancel={(id) => api.cancelDownload(id, true)}
+            onDelete={handleDelete}
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
             onOpenAddModal={() => setIsAddModalOpen(true)}
@@ -316,6 +334,7 @@ export const App: React.FC = () => {
             onClose={() => setSelectedJob(null)}
             onPause={(id) => api.pauseDownload(id)}
             onResume={(id) => api.resumeDownload(id)}
+            onDelete={handleDelete}
             onOpen={(id) => api.openFile(id)}
             onReveal={(id) => api.revealFile(id)}
             speedBytesPerSec={speedsById[selectedJob.id] || 0}
@@ -345,7 +364,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.1.2
+          Orveth 0.1.3
         </div>
       </footer>
 

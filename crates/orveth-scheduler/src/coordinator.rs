@@ -9,6 +9,7 @@ use orveth_integrity::FileHasher;
 use orveth_persistence::{DbPool, JobRepository, SegmentRepository};
 use orveth_storage::StorageManager;
 use reqwest::Client;
+use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -68,15 +69,44 @@ impl DownloadCoordinator {
             return Ok(());
         }
 
-        // Update total_bytes in DB if detected
-        if let Some(len) = caps.content_length {
-            let _ = JobRepository::update_progress(
+        let mut job = job;
+        let generic_names = [
+            "download",
+            "download.php",
+            "get",
+            "file",
+            "index.html",
+            "index.php",
+            "view",
+        ];
+        let is_generic = generic_names.contains(&job.file_name.to_ascii_lowercase().as_str())
+            || !job.file_name.contains('.');
+
+        let mut file_name_changed = false;
+        if let Some(ref new_name) = caps.suggested_filename {
+            if new_name != &job.file_name && (is_generic || new_name.contains('.')) {
+                let parent = job.destination.parent().unwrap_or_else(|| Path::new("."));
+                let new_dest = parent.join(new_name);
+                job.file_name = new_name.clone();
+                job.destination = new_dest;
+                file_name_changed = true;
+            }
+        }
+
+        if file_name_changed || caps.final_url != job.url || caps.content_length.is_some() {
+            let _ = JobRepository::update_metadata(
                 &ctx.pool,
                 ctx.job_id,
-                job.downloaded_bytes,
-                Some(len),
+                &job.file_name,
+                &job.destination,
+                Some(&caps.final_url),
+                caps.content_length,
             )
             .await;
+            job.final_url = Some(caps.final_url.clone());
+            if let Some(len) = caps.content_length {
+                job.total_bytes = Some(len);
+            }
         }
 
         let is_segmented =

@@ -185,6 +185,35 @@ impl JobRepository {
         Ok(())
     }
 
+    pub async fn update_metadata(
+        pool: &DbPool,
+        id: Uuid,
+        file_name: &str,
+        destination: &Path,
+        final_url: Option<&str>,
+        total_bytes: Option<u64>,
+    ) -> Result<()> {
+        let id_str = id.to_string();
+        let dest_str = destination.display().to_string();
+        let now_str = Utc::now().to_rfc3339();
+        let tot_i64 = total_bytes.map(|t| t as i64);
+
+        sqlx::query(
+            "UPDATE downloads SET file_name = ?, destination = ?, final_url = COALESCE(?, final_url), total_bytes = COALESCE(?, total_bytes), updated_at = ? WHERE id = ?"
+        )
+        .bind(file_name)
+        .bind(dest_str)
+        .bind(final_url)
+        .bind(tot_i64)
+        .bind(now_str)
+        .bind(id_str)
+        .execute(pool)
+        .await
+        .map_err(|e| OrvethError::Database(format!("Failed to update job metadata: {e}")))?;
+
+        Ok(())
+    }
+
     pub async fn update_completed(
         pool: &DbPool,
         id: Uuid,
@@ -353,6 +382,14 @@ impl JobRepository {
 
     pub async fn delete(pool: &DbPool, id: Uuid) -> Result<()> {
         let id_str = id.to_string();
+        let _ = sqlx::query("DELETE FROM segments WHERE download_id = ?")
+            .bind(&id_str)
+            .execute(pool)
+            .await;
+        let _ = sqlx::query("DELETE FROM download_events WHERE download_id = ?")
+            .bind(&id_str)
+            .execute(pool)
+            .await;
         sqlx::query("DELETE FROM downloads WHERE id = ?")
             .bind(id_str)
             .execute(pool)

@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { DownloadJob } from "../api";
-import { X, Pause, Play, FolderOpen, Copy, Check } from "lucide-react";
+import { X, Pause, Play, FolderOpen, Copy, Check, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface JobDetailDrawerProps {
@@ -10,6 +10,7 @@ interface JobDetailDrawerProps {
   onResume: (id: string) => void;
   onOpen: (id: string) => void;
   onReveal: (id: string) => void;
+  onDelete?: (id: string) => void;
   speedBytesPerSec?: number;
   speedHistory?: number[];
 }
@@ -20,6 +21,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
   onPause,
   onResume,
   onOpen,
+  onDelete,
   speedBytesPerSec = 0,
   speedHistory = [],
 }) => {
@@ -166,13 +168,13 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
         </div>
 
         {/* Action Buttons Bar */}
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-4 gap-1.5">
           {job.status === "downloading" ? (
             <Button
               variant="outline"
               size="sm"
               onClick={() => onPause(job.id)}
-              className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1.5 font-normal"
+              className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1 font-normal"
             >
               <Pause className="w-3.5 h-3.5" />
               <span>Pause</span>
@@ -182,7 +184,7 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
               variant="outline"
               size="sm"
               onClick={() => onResume(job.id)}
-              className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1.5 font-normal"
+              className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1 font-normal"
             >
               <Play className="w-3.5 h-3.5" />
               <span>Resume</span>
@@ -193,20 +195,30 @@ export const JobDetailDrawer: React.FC<JobDetailDrawerProps> = ({
             variant="outline"
             size="sm"
             onClick={() => onOpen(job.id)}
-            className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1.5 font-normal"
+            className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1 font-normal"
           >
             <FolderOpen className="w-3.5 h-3.5" />
-            <span>Open folder</span>
+            <span>Folder</span>
           </Button>
 
           <Button
             variant="outline"
             size="sm"
             onClick={handleCopyUrl}
-            className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1.5 font-normal"
+            className="h-8 px-2 text-xs bg-zinc-950 hover:bg-zinc-900 text-zinc-200 border-zinc-800 gap-1 font-normal"
           >
             {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>Copy URL</span>
+            <span>Copy</span>
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onDelete?.(job.id)}
+            className="h-8 px-2 text-xs bg-zinc-950 hover:bg-red-500/10 text-zinc-400 hover:text-red-400 border-zinc-800 hover:border-red-500/30 gap-1 font-normal"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span>Delete</span>
           </Button>
         </div>
 
