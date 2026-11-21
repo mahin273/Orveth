@@ -69,6 +69,7 @@ export interface EngineSettings {
   theme: string;
   clipboard_monitoring_enabled: boolean;
   notification_enabled: boolean;
+  proxy_url?: string;
 }
 
 export interface DownloadFilter {

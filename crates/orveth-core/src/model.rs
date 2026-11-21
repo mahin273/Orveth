@@ -202,6 +202,8 @@ pub struct EngineSettings {
     pub theme: String,
     pub clipboard_monitoring_enabled: bool,
     pub notification_enabled: bool,
+    #[serde(default)]
+    pub proxy_url: Option<String>,
 }
 
 impl Default for EngineSettings {
@@ -221,6 +223,7 @@ impl Default for EngineSettings {
             theme: "system".to_string(),
             clipboard_monitoring_enabled: false,
             notification_enabled: true,
+            proxy_url: None,
         }
     }
 }
