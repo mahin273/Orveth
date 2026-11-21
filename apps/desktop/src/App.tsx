@@ -179,7 +179,7 @@ export const App: React.FC = () => {
               <span>SHA-256 Enabled</span>
             </span>
             <span className="text-border">|</span>
-            <span>Orveth v0.1.0</span>
+            <span>Orveth v0.1.1</span>
           </div>
         </footer>
       </div>
