@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.orveth.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Orveth</name>
+  <summary>High-performance modular download manager</summary>
+  <description>
+    <p>
+      Orveth is a fast, multi-protocol download manager built with Rust and React.
+      Engineered for extreme transfer speeds, local-first privacy, network resilience,
+      and seamless browser companion integration.
+    </p>
+  </description>
+  <launchable type="desktop-id">Orveth.desktop</launchable>
+  <url type="homepage">https://github.com/mahin273/Orveth</url>
+  <url type="bugtracker">https://github.com/mahin273/Orveth/issues</url>
+  <developer id="com.orveth">
+    <name>Mahin Khan</name>
+  </developer>
+  <provides>
+    <binary>orveth-desktop</binary>
+  </provides>
+  <categories>
+    <category>Network</category>
+    <category>FileTransfer</category>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1" />
+  <releases>
+    <release version="0.2.5" date="2026-11-23" />
+  </releases>
+</component>

@@ -49,14 +49,20 @@
           "libgtk-3-0",
           "libayatana-appindicator3-1",
           "librsvg2-2"
-        ]
+        ],
+        "files": {
+          "/usr/share/metainfo/com.orveth.desktop.metainfo.xml": "metainfo/com.orveth.desktop.metainfo.xml"
+        }
       },
       "rpm": {
         "depends": [
           "webkit2gtk4.1",
           "gtk3",
           "libayatana-appindicator3"
-        ]
+        ],
+        "files": {
+          "/usr/share/metainfo/com.orveth.desktop.metainfo.xml": "metainfo/com.orveth.desktop.metainfo.xml"
+        }
       }
     },
     "windows": {
