@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Orveth Download Integration (IDM-Grade)",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Seamless high-speed download interception, floating web video capture bar, and one-click integration with Orveth Download Manager.",
   "permissions": [
     "contextMenus",

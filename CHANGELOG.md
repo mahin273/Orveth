@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.6] - 2026-11-23
+
+### Added
+- **FreeDesktop AppStream Metainfo Specification**:
+  - Embedded `/usr/share/metainfo/com.orveth.desktop.metainfo.xml` into Linux RPM and DEB packages.
+  - Native integration with GNOME Software and KDE Discover for application cards, screenshots, and metadata parsing.
+
+---
+
 ## [0.2.5] - 2026-11-23
 
 ### Fixed

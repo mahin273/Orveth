@@ -527,7 +527,7 @@ export const App: React.FC = () => {
         </div>
 
         <div className="text-zinc-500">
-          Orveth 0.2.5
+          Orveth 0.2.6
         </div>
       </footer>
 
