@@ -1,8 +1,10 @@
 [package]
 name = "orveth-desktop"
-version = "0.2.4"
+version = "0.2.5"
 edition = "2021"
 authors = ["Mahin Khan"]
+description = "High-performance modular download manager"
+license = "MIT"
 
 [workspace]
 
