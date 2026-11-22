@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.5] - 2026-11-23
+
+### Fixed
+- **Linux Packaging Metadata**:
+  - Configured AppStream / FreeDesktop packaging metadata (`category`, `shortDescription`, `longDescription`, `license`, `copyright`) in Tauri bundle configuration.
+  - Resolved GNOME Software and PackageKit local RPM load failure ("Unable to Show App Details").
+  - Synchronized package description and license in desktop Cargo crate.
+
+### Added
+- **Multi-Platform Release Pipeline**:
+  - Automated GitHub Actions builds for Fedora/RHEL (`.rpm`), Debian/Ubuntu (`.deb`), and Windows (`.exe`, `.msi`) alongside universal `.AppImage`.
+  - Checksum generator producing `SHA256SUMS-linux.txt` for published releases.
+
+---
+
 ## [0.2.4] - 2026-11-21
 
 ### Added

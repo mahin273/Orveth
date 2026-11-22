@@ -71,7 +71,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (res.ok) {
         const data = await res.json();
         statusBadge.className = "status-badge status-online";
-        statusBadge.textContent = `● Connected (${data.version || "v0.2.4"})`;
+        statusBadge.textContent = `● Connected (${data.version || "v0.2.5"})`;
         return true;
       } else {
         statusBadge.className = "status-badge status-offline";
